@@ -38,6 +38,8 @@ from .wizard_views import (
     wizard_step4,
     wizard_step5,
 )
+from . import views
+
 
 urlpatterns = [
     # Главная панель
@@ -88,4 +90,16 @@ urlpatterns = [
     path('teachers/<int:teacher_id>/edit/', edit_teacher, name='edit_teacher'),
     path('teachers/<int:teacher_id>/reset-password/', reset_teacher_password, name='reset_teacher_password'),
     path('teachers/<int:teacher_id>/assign-classes/', assign_classes, name='assign_classes'),
+    # Основные CRUD
+    path('', views.report_list, name='report_list'),
+    path('create/', views.report_create, name='report_create'),
+    path('<int:pk>/', views.report_detail, name='report_detail'),
+    path('<int:pk>/update/', views.report_update, name='report_update'),
+    path('<int:pk>/delete/', views.report_delete, name='report_delete'),
+
+    # Дополнительные
+    path('dashboard/', views.dashboard, name='dashboard'),
+    path('my-reports/', views.my_reports, name='my_reports'),
+    path('export/', views.reports_export, name='reports_export'),
+    path('<int:pk>/change-status/', views.report_change_status, name='report_change_status'),
 ]

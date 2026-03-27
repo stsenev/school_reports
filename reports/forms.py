@@ -1,367 +1,622 @@
 # reports/forms.py
+
+from typing import Optional, Dict, Any
+from datetime import date, datetime
+
 from django import forms
-from django.forms import formset_factory
-from django.conf import settings
-from .models import *
+from django.core.exceptions import ValidationError
+from django.utils import timezone
+from django.contrib.auth import get_user_model
+
+from crispy_forms.helper import FormHelper
+from crispy_forms.layout import Layout, Submit, Row, Column, HTML, Field
+from crispy_forms.bootstrap import FormActions, PrependedText, AppendedText
+
+from .models import Report, Subject, ClassGroup
+
+User = get_user_model()
 
 
-class TeacherReportForm(forms.ModelForm):
-    class Meta:
-        model = TeacherReport
-        fields = ['total_students_end', 'has_movement']
-        widgets = {
-            'total_students_end': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
-            'has_movement': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+# ============================================================
+# Кастомные виджеты
+# ============================================================
+
+class DatePickerInput(forms.DateInput):
+    """
+    Кастомный виджет для выбора даты с HTML5 date picker.
+    """
+    input_type = 'date'
+
+    def __init__(self, attrs=None):
+        default_attrs = {'class': 'form-control datepicker'}
+        if attrs:
+            default_attrs.update(attrs)
+        super().__init__(attrs=default_attrs)
+
+
+class RichTextarea(forms.Textarea):
+    """
+    Улучшенный текстовый виджет с поддержкой базового форматирования.
+    """
+
+    def __init__(self, attrs=None):
+        default_attrs = {
+            'class': 'form-control rich-textarea',
+            'rows': 4,
+            'placeholder': 'Введите текст...',
         }
+        if attrs:
+            default_attrs.update(attrs)
+        super().__init__(attrs=default_attrs)
 
 
-class StudentMovementForm(forms.ModelForm):
-    class Meta:
-        model = StudentMovement
-        fields = ['movement_type', 'student_name', 'moved_to_another_class',
-                 'moved_to_another_school', 'target_class', 'target_school',
-                 'came_from_another_class', 'came_from_another_school',
-                 'source_class', 'source_school', 'order_number', 'order_date']
-        widgets = {
-            'movement_type': forms.Select(attrs={'class': 'form-control'}),
-            'student_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'moved_to_another_class': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'moved_to_another_school': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'target_class': forms.Select(attrs={'class': 'form-control'}),
-            'target_school': forms.TextInput(attrs={'class': 'form-control'}),
-            'came_from_another_class': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'came_from_another_school': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'source_class': forms.Select(attrs={'class': 'form-control'}),
-            'source_school': forms.TextInput(attrs={'class': 'form-control'}),
-            'order_number': forms.TextInput(attrs={'class': 'form-control'}),
-            'order_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-        }
+# ============================================================
+# Базовый класс для всех форм с Crispy Forms
+# ============================================================
+
+class BaseCrispyForm(forms.Form):
+    """
+    Базовый класс для всех форм с настройками Crispy Forms.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['target_class'].queryset = SchoolClass.objects.filter(is_active=True)
-        self.fields['source_class'].queryset = SchoolClass.objects.filter(is_active=True)
-        self.fields['target_class'].required = False
-        self.fields['source_class'].required = False
-        self.fields['order_number'].required = False  # Делаем необязательным
-        self.fields['order_date'].required = False    # Делаем необязательным
+        self.helper = FormHelper()
+        self.helper.form_method = 'post'
+        self.helper.form_tag = True
+        self.helper.label_class = 'form-label fw-semibold'
+        self.helper.field_class = 'mb-3'
 
-# reports/forms.py - обновленная форма FamilyEducationForm
+        # Применяем класс form-control ко всем полям по умолчанию
+        for field_name, field in self.fields.items():
+            if isinstance(field.widget, (forms.TextInput, forms.EmailInput,
+                                         forms.NumberInput, forms.PasswordInput,
+                                         forms.DateInput, forms.DateTimeInput,
+                                         forms.Select, forms.SelectMultiple)):
+                if 'class' not in field.widget.attrs:
+                    field.widget.attrs['class'] = 'form-control'
 
-class FamilyEducationForm(forms.ModelForm):
-    class Meta:
-        model = FamilyEducation
-        fields = ['has_family_education', 'count']
-        widgets = {
-            'has_family_education': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'count': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'min': 0,
-                'readonly': True,  # Делаем поле только для чтения
-                'style': 'background-color: #e9ecef;'
-            }),
-        }
-        labels = {
-            'has_family_education': 'Есть ученики на семейном обучении',
-            'count': 'Количество учеников',
-        }
-        help_texts = {
-            'count': 'Количество автоматически обновляется при добавлении учеников',
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Убеждаемся, что поле count только для чтения
-        self.fields['count'].disabled = True
-        self.fields['count'].required = False
-
-class FamilyEducationStudentForm(forms.ModelForm):
-    class Meta:
-        model = FamilyEducationStudent
-        fields = ['full_name']
-        widgets = {
-            'full_name': forms.TextInput(attrs={'class': 'form-control'}),
-        }
+            # Добавляем placeholder из label
+            if field.label and not field.widget.attrs.get('placeholder'):
+                field.widget.attrs['placeholder'] = field.label
 
 
-class StudentAgeGroupForm(forms.ModelForm):
-    class Meta:
-        model = StudentAgeGroup
-        fields = ['birth_year', 'boys_count', 'girls_count']
-        widgets = {
-            'birth_year': forms.NumberInput(attrs={'class': 'form-control', 'min': 2000, 'max': 2030}),
-            'boys_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'girls_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-        }
+# ============================================================
+# Форма отчета
+# ============================================================
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Устанавливаем значения по умолчанию
-        if not self.initial.get('boys_count'):
-            self.initial['boys_count'] = 0
-        if not self.initial.get('girls_count'):
-            self.initial['girls_count'] = 0
+class ReportForm(BaseCrispyForm, forms.ModelForm):
+    """
+    Форма для создания и редактирования отчета.
+    """
 
-        # Делаем поля необязательными, если форма пустая
-        if not self.instance.pk and not self.data:
-            self.fields['birth_year'].required = False
-            self.fields['boys_count'].required = False
-            self.fields['girls_count'].required = False
-
-    def clean(self):
-        cleaned_data = super().clean()
-        birth_year = cleaned_data.get('birth_year')
-        boys_count = cleaned_data.get('boys_count')
-        girls_count = cleaned_data.get('girls_count')
-
-        # Если все поля пустые или нулевые, не валидируем
-        if not birth_year and (not boys_count or boys_count == 0) and (not girls_count or girls_count == 0):
-            return {}
-
-        # Если есть данные, проверяем обязательные поля
-        if birth_year:
-            if boys_count is None:
-                self.add_error('boys_count', 'Обязательное поле.')
-            if girls_count is None:
-                self.add_error('girls_count', 'Обязательное поле.')
-        else:
-            self.add_error('birth_year', 'Обязательное поле.')
-
-        return cleaned_data
-
-
-class HealthGroupForm(forms.ModelForm):
-    class Meta:
-        model = HealthGroup
-        fields = ['group1', 'group2', 'group3', 'group4', 'group5']
-        widgets = {
-            'group1': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'group2': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'group3': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'group4': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'group5': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-        }
-
-
-class PhysicalEducationGroupForm(forms.ModelForm):
-    class Meta:
-        model = PhysicalEducationGroup
-        fields = ['main_group', 'preparatory_group', 'special_group', 'exempt_count']
-        widgets = {
-            'main_group': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'preparatory_group': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'special_group': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'exempt_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-        }
-
-
-class ExemptStudentForm(forms.ModelForm):
-    class Meta:
-        model = ExemptStudent
-        fields = ['full_name']
-        widgets = {
-            'full_name': forms.TextInput(attrs={'class': 'form-control'}),
-        }
-
-
-class SpecialNeedsForm(forms.ModelForm):
-    class Meta:
-        model = SpecialNeeds
-        fields = ['disabled_count', 'special_needs_count', 'disabled_special_needs_count',
-                  'home_schooling_count', 'home_schooling_disabled_count', 'foster_care_count']
-        widgets = {
-            'disabled_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'special_needs_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'disabled_special_needs_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'home_schooling_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'home_schooling_disabled_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'foster_care_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-        }
-
-
-class SpecialNeedsStudentForm(forms.ModelForm):
-    class Meta:
-        model = SpecialNeedsStudent
-        fields = ['student_type', 'full_name']
-        widgets = {
-            'student_type': forms.Select(attrs={'class': 'form-control'}),
-            'full_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Введите ФИО ученика'}),
-        }
-
-
-class AcademicPerformanceForm(forms.ModelForm):
-    class Meta:
-        model = AcademicPerformance
-        fields = ['excellent_count', 'good_count', 'one_four_count', 'one_three_count',
-                  'poor_count', 'not_attested_count', 'retained_count', 'conditionally_promoted_count',
-                  'days_missed', 'days_missed_illness', 'lessons_missed', 'lessons_missed_illness',
-                  'injury_school', 'injury_outside']
-        widgets = {
-            'excellent_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'good_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'one_four_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'one_three_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'poor_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'not_attested_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'retained_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'conditionally_promoted_count': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'days_missed': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'days_missed_illness': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'lessons_missed': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'lessons_missed_illness': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'injury_school': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-            'injury_outside': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'value': 0}),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Делаем поля необязательными, так как они будут автоматически рассчитываться
-        self.fields['excellent_count'].required = False
-        self.fields['one_four_count'].required = False
-        self.fields['one_three_count'].required = False
-        self.fields['poor_count'].required = False
-        self.fields['not_attested_count'].required = False
-
-        # Для не-годовых отчетов делаем эти поля необязательными
-        self.fields['retained_count'].required = False
-        self.fields['conditionally_promoted_count'].required = False
-
-class SubjectChoiceField(forms.ChoiceField):
-    def __init__(self, *args, **kwargs):
-        super().__init__(choices=settings.SCHOOL_SUBJECTS, *args, **kwargs)
-
-
-class OneFourStudentForm(forms.ModelForm):
-    subject_choice = SubjectChoiceField(label='Предмет', required=False)
-    custom_subject = forms.CharField(
-        label='Другой предмет',
+    # Дополнительные поля для удобства
+    confirm_status = forms.BooleanField(
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Введите название предмета'})
+        label='Отправить на проверку',
+        help_text='Отметьте, чтобы отправить отчет на проверку после сохранения',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
     )
 
     class Meta:
-        model = OneFourStudent
-        fields = ['full_name', 'subject', 'subject_code', 'teacher']
+        model = Report
+        fields = ['subject', 'class_group', 'date', 'topic', 'homework', 'notes']
         widgets = {
-            'full_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'subject': forms.HiddenInput(),
-            'subject_code': forms.HiddenInput(),
-            'teacher': forms.TextInput(attrs={'class': 'form-control'}),
+            'date': DatePickerInput(),
+            'topic': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Тема урока',
+            }),
+            'homework': RichTextarea(attrs={
+                'rows': 3,
+                'placeholder': 'Опишите домашнее задание...',
+            }),
+            'notes': RichTextarea(attrs={
+                'rows': 3,
+                'placeholder': 'Дополнительные заметки...',
+            }),
         }
+
+    def __init__(self, *args, **kwargs):
+        # Извлекаем пользователя, если передан
+        self.user = kwargs.pop('user', None)
+        self.is_update = kwargs.pop('is_update', False)
+
+        super().__init__(*args, **kwargs)
+
+        # Настройка Crispy Layout
+        self.helper.layout = Layout(
+            Row(
+                Column('subject', css_class='col-md-6'),
+                Column('class_group', css_class='col-md-6'),
+                css_class='row'
+            ),
+            Row(
+                Column('date', css_class='col-md-6'),
+                css_class='row'
+            ),
+            'topic',
+            'homework',
+            'notes',
+            HTML("""
+                <div class="alert alert-info small mt-2">
+                    <i class="fas fa-info-circle"></i> 
+                    После создания отчет можно будет отправить на проверку или сохранить как черновик.
+                </div>
+            """),
+            FormActions(
+                Submit('submit', 'Сохранить', css_class='btn-primary'),
+                HTML('<a href="{% url "reports:report_list" %}" class="btn btn-secondary">Отмена</a>'),
+                css_class='mt-3'
+            )
+        )
+
+        # Ограничиваем выбор классов для учителя (если не админ)
+        if self.user and not self.user.is_superuser:
+            # Учитель может выбирать только свои классы
+            self.fields['class_group'].queryset = ClassGroup.objects.filter(
+                class_teacher=self.user
+            )
+
+        # Добавляем пустую опцию для полей с выбором
+        if not self.instance.pk:
+            self.fields['subject'].empty_label = 'Выберите предмет'
+            self.fields['class_group'].empty_label = 'Выберите класс'
+
+    def clean_date(self):
+        """
+        Валидация даты: нельзя создавать отчеты на будущие даты.
+        """
+        report_date = self.cleaned_data.get('date')
+        if report_date and report_date > timezone.now().date():
+            raise ValidationError('Нельзя создавать отчеты на будущие даты.')
+        return report_date
+
+    def clean_topic(self):
+        """
+        Валидация темы: минимальная длина.
+        """
+        topic = self.cleaned_data.get('topic', '').strip()
+        if len(topic) < 3:
+            raise ValidationError('Тема урока должна содержать минимум 3 символа.')
+        if len(topic) > 200:
+            raise ValidationError('Тема урока не должна превышать 200 символов.')
+        return topic
 
     def clean(self):
+        """
+        Общая валидация формы.
+        """
         cleaned_data = super().clean()
-        subject_choice = cleaned_data.get('subject_choice')
-        custom_subject = cleaned_data.get('custom_subject')
 
-        if subject_choice == 'other' and custom_subject:
-            cleaned_data['subject'] = custom_subject
-            cleaned_data['subject_code'] = 'other'
-        elif subject_choice and subject_choice != 'other':
-            subject_dict = dict(settings.SCHOOL_SUBJECTS)
-            cleaned_data['subject'] = subject_dict.get(subject_choice, '')
-            cleaned_data['subject_code'] = subject_choice
-        else:
-            self.add_error('subject_choice', 'Выберите предмет или укажите свой')
+        # Проверка на дублирование: нельзя создать два отчета за один день
+        # по одному предмету и классу
+        if not self.is_update:
+            subject = cleaned_data.get('subject')
+            class_group = cleaned_data.get('class_group')
+            report_date = cleaned_data.get('date')
 
-        return cleaned_data
+            if subject and class_group and report_date:
+                existing_report = Report.objects.filter(
+                    subject=subject,
+                    class_group=class_group,
+                    date=report_date,
+                    teacher=self.user
+                ).exclude(pk=self.instance.pk if self.instance.pk else None)
 
-
-class OneThreeStudentForm(OneFourStudentForm):
-    class Meta(OneFourStudentForm.Meta):
-        model = OneThreeStudent
-
-
-class PoorStudentForm(OneFourStudentForm):
-    class Meta(OneFourStudentForm.Meta):
-        model = PoorStudent
-
-
-class ExcellentStudentForm(forms.ModelForm):
-    class Meta:
-        model = ExcellentStudent
-        fields = ['full_name']
-        widgets = {
-            'full_name': forms.TextInput(attrs={'class': 'form-control'}),
-        }
-
-
-class NotAttestedStudentForm(forms.ModelForm):
-    class Meta:
-        model = NotAttestedStudent
-        fields = ['full_name', 'subjects']
-        widgets = {
-            'full_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'subjects': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-        }
-
-
-class RetainedStudentForm(forms.ModelForm):
-    class Meta:
-        model = RetainedStudent
-        fields = ['full_name']
-        widgets = {
-            'full_name': forms.TextInput(attrs={'class': 'form-control'}),
-        }
-
-
-class ConditionallyPromotedStudentForm(forms.ModelForm):
-    class Meta:
-        model = ConditionallyPromotedStudent
-        fields = ['full_name']
-        widgets = {
-            'full_name': forms.TextInput(attrs={'class': 'form-control'}),
-        }
-
-
-class TeacherRegistrationForm(forms.ModelForm):
-    username = forms.CharField(max_length=150, label='Логин')
-    password = forms.CharField(widget=forms.PasswordInput, label='Пароль')
-    confirm_password = forms.CharField(widget=forms.PasswordInput, label='Подтверждение пароля')
-    email = forms.EmailField(required=False, label='Email')
-    role = forms.ChoiceField(choices=User.ROLE_CHOICES, label='Роль', initial='teacher')
-
-    class Meta:
-        model = Teacher
-        fields = ['full_name']
-
-    def clean(self):
-        cleaned_data = super().clean()
-        password = cleaned_data.get('password')
-        confirm_password = cleaned_data.get('confirm_password')
-
-        if password and confirm_password and password != confirm_password:
-            self.add_error('confirm_password', 'Пароли не совпадают')
+                if existing_report.exists():
+                    raise ValidationError(
+                        f'Отчет по предмету "{subject}" для класса "{class_group}" '
+                        f'за {report_date.strftime("%d.%m.%Y")} уже существует.'
+                    )
 
         return cleaned_data
 
     def save(self, commit=True):
-        user = User.objects.create_user(
-            username=self.cleaned_data['username'],
-            password=self.cleaned_data['password'],
-            email=self.cleaned_data.get('email', ''),
-            role=self.cleaned_data['role']
-        )
-
-        teacher = super().save(commit=False)
-        teacher.user = user
+        """
+        Сохранение формы с дополнительной логикой.
+        """
+        instance = super().save(commit=False)
 
         if commit:
-            teacher.save()
+            instance.save()
 
-        return teacher
+            # Если отмечена отправка на проверку, меняем статус
+            if self.cleaned_data.get('confirm_status'):
+                instance.status = 'submitted'
+                instance.save()
+
+        return instance
 
 
-# Формсеты - изменен StudentAgeGroupFormSet с extra=0
-StudentMovementFormSet = formset_factory(StudentMovementForm, extra=0, can_delete=True)
-FamilyEducationStudentFormSet = formset_factory(FamilyEducationStudentForm, extra=0, can_delete=True)
-StudentAgeGroupFormSet = formset_factory(StudentAgeGroupForm, extra=0, can_delete=True, min_num=0, validate_min=False)
-ExemptStudentFormSet = formset_factory(ExemptStudentForm, extra=0, can_delete=True)
-SpecialNeedsStudentFormSet = formset_factory(SpecialNeedsStudentForm, extra=0, can_delete=True)
-ExcellentStudentFormSet = formset_factory(ExcellentStudentForm, extra=0, can_delete=True)
-OneFourStudentFormSet = formset_factory(OneFourStudentForm, extra=0, can_delete=True)
-OneThreeStudentFormSet = formset_factory(OneThreeStudentForm, extra=0, can_delete=True)
-PoorStudentFormSet = formset_factory(PoorStudentForm, extra=0, can_delete=True)
-NotAttestedStudentFormSet = formset_factory(NotAttestedStudentForm, extra=0, can_delete=True)
-RetainedStudentFormSet = formset_factory(RetainedStudentForm, extra=0, can_delete=True)
-ConditionallyPromotedStudentFormSet = formset_factory(ConditionallyPromotedStudentForm, extra=0, can_delete=True)
+# ============================================================
+# Форма фильтрации отчетов
+# ============================================================
+
+class ReportFilterForm(BaseCrispyForm):
+    """
+    Форма для фильтрации списка отчетов.
+    """
+
+    subject = forms.ModelChoiceField(
+        queryset=Subject.objects.all(),
+        required=False,
+        label='Предмет',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    class_group = forms.ModelChoiceField(
+        queryset=ClassGroup.objects.all(),
+        required=False,
+        label='Класс',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    status = forms.ChoiceField(
+        choices=[('', 'Все')] + list(Report.STATUS_CHOICES),
+        required=False,
+        label='Статус',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    date_from = forms.DateField(
+        required=False,
+        label='Дата от',
+        widget=DatePickerInput()
+    )
+
+    date_to = forms.DateField(
+        required=False,
+        label='Дата до',
+        widget=DatePickerInput()
+    )
+
+    teacher = forms.ModelChoiceField(
+        queryset=User.objects.filter(groups__name='teachers'),
+        required=False,
+        label='Учитель',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        # Настройка Crispy Layout для фильтров
+        self.helper.form_method = 'get'
+        self.helper.form_tag = True
+        self.helper.layout = Layout(
+            Row(
+                Column('subject', css_class='col-md-3'),
+                Column('class_group', css_class='col-md-3'),
+                Column('status', css_class='col-md-3'),
+                css_class='row'
+            ),
+            Row(
+                Column('date_from', css_class='col-md-3'),
+                Column('date_to', css_class='col-md-3'),
+                Column('teacher', css_class='col-md-3'),
+                css_class='row'
+            ),
+            Row(
+                Column(
+                    HTML("""
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter"></i> Применить
+                            </button>
+                            <a href="{% url 'reports:report_list' %}" class="btn btn-secondary">
+                                <i class="fas fa-undo"></i> Сбросить
+                            </a>
+                        </div>
+                    """),
+                    css_class='col-12'
+                )
+            )
+        )
+
+        # Если пользователь не админ, убираем фильтр по учителю
+        if self.user and not self.user.is_superuser:
+            self.fields.pop('teacher', None)
+
+        # Сортировка выпадающих списков
+        self.fields['subject'].queryset = Subject.objects.all().order_by('name')
+        self.fields['class_group'].queryset = ClassGroup.objects.all().order_by('name')
+
+    def clean(self):
+        """
+        Валидация диапазона дат.
+        """
+        cleaned_data = super().clean()
+        date_from = cleaned_data.get('date_from')
+        date_to = cleaned_data.get('date_to')
+
+        if date_from and date_to and date_from > date_to:
+            raise ValidationError('Дата "от" не может быть позже даты "до".')
+
+        return cleaned_data
+
+
+# ============================================================
+# Форма быстрого создания отчета (минимальная версия)
+# ============================================================
+
+class QuickReportForm(BaseCrispyForm, forms.ModelForm):
+    """
+    Упрощенная форма для быстрого создания отчета.
+    Используется на дашборде или в виджетах.
+    """
+
+    class Meta:
+        model = Report
+        fields = ['subject', 'class_group', 'topic']
+        widgets = {
+            'topic': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Тема урока',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        self.helper.layout = Layout(
+            'subject',
+            'class_group',
+            'topic',
+            FormActions(
+                Submit('submit', 'Быстрый отчет', css_class='btn-success btn-sm'),
+                css_class='mt-2'
+            )
+        )
+
+        if self.user and not self.user.is_superuser:
+            self.fields['class_group'].queryset = ClassGroup.objects.filter(
+                class_teacher=self.user
+            )
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.teacher = self.user
+        instance.date = timezone.now().date()
+
+        if commit:
+            instance.save()
+
+        return instance
+
+
+# ============================================================
+# Форма массового импорта отчетов
+# ============================================================
+
+class BulkReportImportForm(forms.Form):
+    """
+    Форма для массового импорта отчетов из CSV/Excel.
+    """
+
+    csv_file = forms.FileField(
+        label='CSV файл',
+        help_text='Загрузите CSV файл с отчетами. Формат: дата, предмет, класс, тема, дз, примечания',
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.csv,.xlsx'
+        })
+    )
+
+    override_existing = forms.BooleanField(
+        required=False,
+        label='Перезаписывать существующие отчеты',
+        help_text='Если отмечено, существующие отчеты за ту же дату будут заменены',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        self.helper = FormHelper()
+        self.helper.form_method = 'post'
+        self.helper.enctype = 'multipart/form-data'
+        self.helper.layout = Layout(
+            'csv_file',
+            'override_existing',
+            HTML("""
+                <div class="alert alert-info mt-3">
+                    <strong>Инструкция по импорту:</strong>
+                    <ol class="mb-0 mt-2">
+                        <li>Скачайте <a href="{% url 'reports:export_template' %}">шаблон CSV</a></li>
+                        <li>Заполните файл данными</li>
+                        <li>Загрузите файл с помощью формы выше</li>
+                    </ol>
+                </div>
+            """),
+            FormActions(
+                Submit('submit', 'Импортировать', css_class='btn-primary'),
+                HTML('<a href="{% url "reports:report_list" %}" class="btn btn-secondary">Отмена</a>'),
+                css_class='mt-3'
+            )
+        )
+
+    def clean_csv_file(self):
+        """
+        Валидация загруженного файла.
+        """
+        csv_file = self.cleaned_data.get('csv_file')
+
+        if csv_file:
+            # Проверка размера файла (макс 5 МБ)
+            if csv_file.size > 5 * 1024 * 1024:
+                raise ValidationError('Размер файла не должен превышать 5 МБ.')
+
+            # Проверка расширения
+            file_name = csv_file.name.lower()
+            if not (file_name.endswith('.csv') or file_name.endswith('.xlsx')):
+                raise ValidationError('Поддерживаются только файлы форматов CSV и XLSX.')
+
+        return csv_file
+
+
+# ============================================================
+# Форма для статистики (выбор периода)
+# ============================================================
+
+class StatisticsFilterForm(BaseCrispyForm):
+    """
+    Форма для выбора периода статистики.
+    """
+
+    PERIOD_CHOICES = [
+        ('week', 'Последняя неделя'),
+        ('month', 'Последний месяц'),
+        ('quarter', 'Последний квартал'),
+        ('year', 'Последний год'),
+        ('custom', 'Произвольный период'),
+    ]
+
+    period = forms.ChoiceField(
+        choices=PERIOD_CHOICES,
+        initial='month',
+        label='Период',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    date_from = forms.DateField(
+        required=False,
+        label='Дата от',
+        widget=DatePickerInput()
+    )
+
+    date_to = forms.DateField(
+        required=False,
+        label='Дата до',
+        widget=DatePickerInput()
+    )
+
+    teacher = forms.ModelChoiceField(
+        queryset=User.objects.filter(groups__name='teachers'),
+        required=False,
+        label='Учитель',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        self.helper.layout = Layout(
+            Row(
+                Column('period', css_class='col-md-4'),
+                Column('date_from', css_class='col-md-4'),
+                Column('date_to', css_class='col-md-4'),
+                css_class='row'
+            ),
+            Row(
+                Column('teacher', css_class='col-md-6'),
+                css_class='row'
+            ),
+            FormActions(
+                Submit('submit', 'Показать статистику', css_class='btn-primary'),
+                css_class='mt-3'
+            )
+        )
+
+        if self.user and not self.user.is_superuser:
+            self.fields.pop('teacher', None)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        period = cleaned_data.get('period')
+        date_from = cleaned_data.get('date_from')
+        date_to = cleaned_data.get('date_to')
+
+        if period == 'custom':
+            if not date_from:
+                self.add_error('date_from', 'Укажите начальную дату')
+            if not date_to:
+                self.add_error('date_to', 'Укажите конечную дату')
+            if date_from and date_to and date_from > date_to:
+                raise ValidationError('Дата "от" не может быть позже даты "до".')
+
+        return cleaned_data
+
+    def get_date_range(self):
+        """
+        Возвращает кортеж (date_from, date_to) на основе выбранного периода.
+        """
+        period = self.cleaned_data.get('period')
+        today = timezone.now().date()
+
+        if period == 'week':
+            return (today - timedelta(days=7), today)
+        elif period == 'month':
+            return (today - timedelta(days=30), today)
+        elif period == 'quarter':
+            return (today - timedelta(days=90), today)
+        elif period == 'year':
+            return (today - timedelta(days=365), today)
+        elif period == 'custom':
+            return (self.cleaned_data.get('date_from'), self.cleaned_data.get('date_to'))
+
+        return (None, None)
+
+
+# ============================================================
+# Форма для обратной связи
+# ============================================================
+
+class FeedbackForm(BaseCrispyForm):
+    """
+    Форма для отправки обратной связи.
+    """
+
+    name = forms.CharField(
+        max_length=100,
+        label='Ваше имя',
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+
+    email = forms.EmailField(
+        label='Email для ответа',
+        widget=forms.EmailInput(attrs={'class': 'form-control'})
+    )
+
+    subject = forms.CharField(
+        max_length=200,
+        label='Тема',
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+
+    message = forms.CharField(
+        label='Сообщение',
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 5,
+            'placeholder': 'Опишите ваш вопрос или предложение...'
+        })
+    )
+
+    rating = forms.ChoiceField(
+        choices=[(i, f'{i} ★') for i in range(1, 6)],
+        label='Оценка',
+        widget=forms.RadioSelect(attrs={'class': 'form-check-inline'})
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.helper.layout = Layout(
+            Row(
+                Column('name', css_class='col-md-6'),
+                Column('email', css_class='col-md-6'),
+                css_class='row'
+            ),
+            'subject',
+            'message',
+            'rating',
+            FormActions(
+                Submit('submit', 'Отправить', css_class='btn-primary'),
+                css_class='mt-3'
+            )
+        )
