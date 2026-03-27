@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+
+{% block title %}Список учителей{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-between align-items-end flex-wrap gap-3">
+            <div>
+                <h1>
+                    <i class="fas fa-chalkboard-teacher text-primary me-2"></i>
+                    Управление учителями
+                </h1>
+                <a href="{% url 'register_teacher' %}?academic_year={{ academic_year }}" class="btn btn-success mt-2">
+                    <i class="fas fa-user-plus me-2"></i>Добавить учителя
+                </a>
+            </div>
+
+            <form method="get" class="d-flex align-items-end gap-2">
+                <div>
+                    <label for="academic_year" class="form-label mb-1">Учебный год</label>
+                    <select name="academic_year" id="academic_year" class="form-select">
+                        {% for year in academic_years %}
+                            <option value="{{ year }}" {% if year == academic_year %}selected{% endif %}>
+                                {{ year }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Показать</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Всего учителей</h5>
+                    <p class="card-text display-6">{{ total_teachers }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">С классами</h5>
+                    <p class="card-text display-6">{{ with_class }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <h5 class="card-title">Без классов</h5>
+                    <p class="card-text display-6">{{ without_class }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Список учителей за {{ academic_year }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th>ФИО</th>
+                                    <th>Логин</th>
+                                    <th>Email</th>
+                                    <th>Классы</th>
+                                    <th>Роль</th>
+                                    <th>Статус</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in teacher_rows %}
+                                <tr>
+                                    <td>{{ row.teacher.full_name }}</td>
+                                    <td>{{ row.teacher.user.username }}</td>
+                                    <td>{{ row.teacher.user.email|default:"-" }}</td>
+                                    <td>
+                                        {% if row.class_names %}
+                                            {{ row.class_names|join:", " }}
+                                        {% else %}
+                                            <span class="text-muted">Не назначен</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge
+                                            {% if row.teacher.user.role == 'teacher' %}bg-success
+                                            {% elif row.teacher.user.role == 'head_teacher' %}bg-warning
+                                            {% elif row.teacher.user.role == 'both' %}bg-info
+                                            {% endif %}">
+                                            {{ row.teacher.user.get_role_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if row.teacher.is_active %}
+                                            <span class="badge bg-success">Активен</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Неактивен</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'edit_teacher' row.teacher.id %}" class="btn btn-sm btn-primary" title="Редактировать">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'assign_classes' row.teacher.id %}?academic_year={{ academic_year }}" class="btn btn-sm btn-info" title="Назначить классы">
+                                                <i class="fas fa-chalkboard"></i>
+                                            </a>
+                                            <a href="{% url 'reset_teacher_password' row.teacher.id %}" class="btn btn-sm btn-warning" title="Сбросить пароль">
+                                                <i class="fas fa-key"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">Учителя не найдены</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

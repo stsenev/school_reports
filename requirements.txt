@@ -1,0 +1,6 @@
+Django>=6.0.0
+crispy-bootstrap5
+django-widget-tweaks
+openpyxl
+argon2-cffi
+pillow

@@ -1,0 +1,587 @@
+<!-- templates/reports/dynamics_report.html -->
+{% extends 'base.html' %}
+{% load report_filters %}
+
+{% block title %}Отчет по динамике{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1>
+                <i class="fas fa-chart-line text-primary me-2"></i>
+                Отчет по динамике показателей
+            </h1>
+            <div class="d-flex justify-content-between align-items-center">
+                <a href="{% url 'head_dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Назад
+                </a>
+                {% if has_data %}
+                <a href="{% url 'export_dynamics_excel' %}?{% if request.GET.urlencode %}{{ request.GET.urlencode }}{% endif %}" class="btn btn-success">
+                    <i class="fas fa-file-excel me-2"></i>Экспорт в Excel
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Параметры сравнения</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Начальный период</label>
+                            <select name="period_from" class="form-select" required>
+                                <option value="">-- Выберите период --</option>
+                                {% for period in periods %}
+                                <option value="{{ period.id }}" {% if selected_period_from == period.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ period.name }} {{ period.academic_year }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Конечный период</label>
+                            <select name="period_to" class="form-select" required>
+                                <option value="">-- Выберите период --</option>
+                                {% for period in periods %}
+                                <option value="{{ period.id }}" {% if selected_period_to == period.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ period.name }} {{ period.academic_year }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Класс</label>
+                            <select name="class" class="form-select">
+                                <option value="">Все классы</option>
+                                {% for class in classes %}
+                                <option value="{{ class.id }}" {% if selected_class == class.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ class.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Параллель</label>
+                            <select name="parallel" class="form-select">
+                                <option value="">Все параллели</option>
+                                {% for p in parallels %}
+                                <option value="{{ p }}" {% if selected_parallel == p|stringformat:"s" %}selected{% endif %}>
+                                    {{ p }} класс
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-check mt-4">
+                                <input type="checkbox" name="show_absolute" id="show_absolute" class="form-check-input" {% if show_absolute %}checked{% endif %}>
+                                <label class="form-check-label" for="show_absolute">
+                                    Показывать абсолютные значения
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-chart-line me-2"></i>Сравнить
+                            </button>
+                            <a href="{% url 'dynamics_report' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Сбросить
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if has_data %}
+    <!-- Информация о сравниваемых периодах -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title">Начальный период</h5>
+                    <p class="card-text h3">{{ period_from.name }} {{ period_from.academic_year }}</p>
+                    <small>{{ period_from.start_date|date:"d.m.Y" }} - {{ period_from.end_date|date:"d.m.Y" }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">Конечный период</h5>
+                    <p class="card-text h3">{{ period_to.name }} {{ period_to.academic_year }}</p>
+                    <small>{{ period_to.start_date|date:"d.m.Y" }} - {{ period_to.end_date|date:"d.m.Y" }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Графики -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        Динамика качества знаний
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="qualityChart" style="height: 300px;"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        Динамика успеваемости
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="successChart" style="height: 300px;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Таблица динамики -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-table me-2"></i>
+                        Динамика показателей по классам
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover table-bordered" id="dynamicsTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th rowspan="2" class="align-middle">Класс</th>
+                                    <th rowspan="2" class="align-middle">Учитель</th>
+                                    <th colspan="3" class="text-center bg-primary">Всего учеников</th>
+                                    <th colspan="3" class="text-center bg-info">Мальчики</th>
+                                    <th colspan="3" class="text-center bg-danger">Девочки</th>
+                                    <th colspan="3" class="text-center bg-warning">Качество %</th>
+                                    <th colspan="3" class="text-center bg-success">Успеваемость %</th>
+                                </tr>
+                                <tr>
+                                    <th class="text-center">{{ period_from.short_name|default:period_from.name }}</th>
+                                    <th class="text-center">{{ period_to.short_name|default:period_to.name }}</th>
+                                    <th class="text-center">Δ</th>
+
+                                    <th class="text-center">{{ period_from.short_name|default:period_from.name }}</th>
+                                    <th class="text-center">{{ period_to.short_name|default:period_to.name }}</th>
+                                    <th class="text-center">Δ</th>
+
+                                    <th class="text-center">{{ period_from.short_name|default:period_from.name }}</th>
+                                    <th class="text-center">{{ period_to.short_name|default:period_to.name }}</th>
+                                    <th class="text-center">Δ</th>
+
+                                    <th class="text-center">{{ period_from.short_name|default:period_from.name }}</th>
+                                    <th class="text-center">{{ period_to.short_name|default:period_to.name }}</th>
+                                    <th class="text-center">Δ</th>
+
+                                    <th class="text-center">{{ period_from.short_name|default:period_from.name }}</th>
+                                    <th class="text-center">{{ period_to.short_name|default:period_to.name }}</th>
+                                    <th class="text-center">Δ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in dynamics_data %}
+                                <tr>
+                                    <td>{{ row.class }}</td>
+                                    <td>{{ row.teacher }}</td>
+
+                                    <!-- Всего учеников -->
+                                    <td class="text-center">{{ row.students_from }}</td>
+                                    <td class="text-center">{{ row.students_to }}</td>
+                                    <td class="text-center {% if row.students_diff > 0 %}text-success{% elif row.students_diff < 0 %}text-danger{% endif %}">
+                                        {% if show_absolute %}
+                                            {{ row.students_diff }}
+                                        {% else %}
+                                            {% if row.students_diff > 0 %}+{% endif %}{{ row.students_percent }}%
+                                        {% endif %}
+                                    </td>
+
+                                    <!-- Мальчики -->
+                                    <td class="text-center">{{ row.boys_from }}</td>
+                                    <td class="text-center">{{ row.boys_to }}</td>
+                                    <td class="text-center {% if row.boys_diff > 0 %}text-success{% elif row.boys_diff < 0 %}text-danger{% endif %}">
+                                        {% if show_absolute %}
+                                            {{ row.boys_diff }}
+                                        {% else %}
+                                            {% if row.boys_diff > 0 %}+{% endif %}{{ row.boys_percent }}%
+                                        {% endif %}
+                                    </td>
+
+                                    <!-- Девочки -->
+                                    <td class="text-center">{{ row.girls_from }}</td>
+                                    <td class="text-center">{{ row.girls_to }}</td>
+                                    <td class="text-center {% if row.girls_diff > 0 %}text-success{% elif row.girls_diff < 0 %}text-danger{% endif %}">
+                                        {% if show_absolute %}
+                                            {{ row.girls_diff }}
+                                        {% else %}
+                                            {% if row.girls_diff > 0 %}+{% endif %}{{ row.girls_percent }}%
+                                        {% endif %}
+                                    </td>
+
+                                    <!-- Качество -->
+                                    <td class="text-center">{{ row.quality_from }}%</td>
+                                    <td class="text-center">{{ row.quality_to }}%</td>
+                                    <td class="text-center {% if row.quality_diff > 0 %}text-success{% elif row.quality_diff < 0 %}text-danger{% endif %}">
+                                        {% if row.quality_diff > 0 %}+{% endif %}{{ row.quality_diff }}%
+                                    </td>
+
+                                    <!-- Успеваемость -->
+                                    <td class="text-center">{{ row.success_from }}%</td>
+                                    <td class="text-center">{{ row.success_to }}%</td>
+                                    <td class="text-center {% if row.success_diff > 0 %}text-success{% elif row.success_diff < 0 %}text-danger{% endif %}">
+                                        {% if row.success_diff > 0 %}+{% endif %}{{ row.success_diff }}%
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-secondary fw-bold">
+                                <tr>
+                                    <td colspan="2" class="text-end">ИТОГО:</td>
+
+                                    <!-- Всего учеников итого -->
+                                    <td class="text-center">{{ totals.students_from }}</td>
+                                    <td class="text-center">{{ totals.students_to }}</td>
+                                    <td class="text-center {% if totals.students_diff > 0 %}text-success{% elif totals.students_diff < 0 %}text-danger{% endif %}">
+                                        {% if show_absolute %}
+                                            {{ totals.students_diff }}
+                                        {% else %}
+                                            {% if totals.students_diff > 0 %}+{% endif %}{{ totals.students_percent }}%
+                                        {% endif %}
+                                    </td>
+
+                                    <!-- Мальчики итого -->
+                                    <td class="text-center">{{ totals.boys_from }}</td>
+                                    <td class="text-center">{{ totals.boys_to }}</td>
+                                    <td class="text-center {% if totals.boys_diff > 0 %}text-success{% elif totals.boys_diff < 0 %}text-danger{% endif %}">
+                                        {% if show_absolute %}
+                                            {{ totals.boys_diff }}
+                                        {% else %}
+                                            {% if totals.boys_diff > 0 %}+{% endif %}{{ totals.boys_percent }}%
+                                        {% endif %}
+                                    </td>
+
+                                    <!-- Девочки итого -->
+                                    <td class="text-center">{{ totals.girls_from }}</td>
+                                    <td class="text-center">{{ totals.girls_to }}</td>
+                                    <td class="text-center {% if totals.girls_diff > 0 %}text-success{% elif totals.girls_diff < 0 %}text-danger{% endif %}">
+                                        {% if show_absolute %}
+                                            {{ totals.girls_diff }}
+                                        {% else %}
+                                            {% if totals.girls_diff > 0 %}+{% endif %}{{ totals.girls_percent }}%
+                                        {% endif %}
+                                    </td>
+
+                                    <!-- Качество итого -->
+                                    <td class="text-center">{{ totals.quality_from }}%</td>
+                                    <td class="text-center">{{ totals.quality_to }}%</td>
+                                    <td class="text-center {% if totals.quality_diff > 0 %}text-success{% elif totals.quality_diff < 0 %}text-danger{% endif %}">
+                                        {% if totals.quality_diff > 0 %}+{% endif %}{{ totals.quality_diff }}%
+                                    </td>
+
+                                    <!-- Успеваемость итого -->
+                                    <td class="text-center">{{ totals.success_from }}%</td>
+                                    <td class="text-center">{{ totals.success_to }}%</td>
+                                    <td class="text-center {% if totals.success_diff > 0 %}text-success{% elif totals.success_diff < 0 %}text-danger{% endif %}">
+                                        {% if totals.success_diff > 0 %}+{% endif %}{{ totals.success_diff }}%
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Дополнительные показатели (социальные категории) -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-heart me-2"></i>
+                        Динамика социальных показателей
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover table-bordered">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Показатель</th>
+                                    <th class="text-center">{{ period_from.name }}</th>
+                                    <th class="text-center">{{ period_to.name }}</th>
+                                    <th class="text-center">Изменение</th>
+                                    <th class="text-center">%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Дети-инвалиды</td>
+                                    <td class="text-center">{{ totals.disabled_from }}</td>
+                                    <td class="text-center">{{ totals.disabled_to }}</td>
+                                    <td class="text-center {% if totals.disabled_diff > 0 %}text-danger{% elif totals.disabled_diff < 0 %}text-success{% endif %}">
+                                        {{ totals.disabled_diff }}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if totals.disabled_from > 0 %}
+                                            {{ totals.disabled_diff|divide:totals.disabled_from|floatformat:1 }}%
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Дети с ОВЗ</td>
+                                    <td class="text-center">{{ totals.special_needs_from }}</td>
+                                    <td class="text-center">{{ totals.special_needs_to }}</td>
+                                    <td class="text-center {% if totals.special_needs_diff > 0 %}text-danger{% elif totals.special_needs_diff < 0 %}text-success{% endif %}">
+                                        {{ totals.special_needs_diff }}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if totals.special_needs_from > 0 %}
+                                            {{ totals.special_needs_diff|divide:totals.special_needs_from|floatformat:1 }}%
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Обучающиеся на дому</td>
+                                    <td class="text-center">{{ totals.home_schooling_from }}</td>
+                                    <td class="text-center">{{ totals.home_schooling_to }}</td>
+                                    <td class="text-center {% if totals.home_schooling_diff > 0 %}text-danger{% elif totals.home_schooling_diff < 0 %}text-success{% endif %}">
+                                        {{ totals.home_schooling_diff }}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if totals.home_schooling_from > 0 %}
+                                            {{ totals.home_schooling_diff|divide:totals.home_schooling_from|floatformat:1 }}%
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Опекаемые дети</td>
+                                    <td class="text-center">{{ totals.foster_care_from }}</td>
+                                    <td class="text-center">{{ totals.foster_care_to }}</td>
+                                    <td class="text-center {% if totals.foster_care_diff > 0 %}text-danger{% elif totals.foster_care_diff < 0 %}text-success{% endif %}">
+                                        {{ totals.foster_care_diff }}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if totals.foster_care_from > 0 %}
+                                            {{ totals.foster_care_diff|divide:totals.foster_care_from|floatformat:1 }}%
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Семейное обучение</td>
+                                    <td class="text-center">{{ totals.family_education_from }}</td>
+                                    <td class="text-center">{{ totals.family_education_to }}</td>
+                                    <td class="text-center {% if totals.family_education_diff > 0 %}text-danger{% elif totals.family_education_diff < 0 %}text-success{% endif %}">
+                                        {{ totals.family_education_diff }}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if totals.family_education_from > 0 %}
+                                            {{ totals.family_education_diff|divide:totals.family_education_from|floatformat:1 }}%
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Подключаем Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if has_data %}
+    // Подготовка данных для графиков
+    const labels = [];
+    const qualityFrom = [];
+    const qualityTo = [];
+    const successFrom = [];
+    const successTo = [];
+
+    {% for row in dynamics_data %}
+        labels.push('{{ row.class }}');
+        qualityFrom.push({{ row.quality_from }});
+        qualityTo.push({{ row.quality_to }});
+        successFrom.push({{ row.success_from }});
+        successTo.push({{ row.success_to }});
+    {% endfor %}
+
+    // График качества знаний
+    const qualityCtx = document.getElementById('qualityChart').getContext('2d');
+    new Chart(qualityCtx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '{{ period_from.name }}',
+                    data: qualityFrom,
+                    backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                    borderColor: 'rgba(13, 110, 253, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '{{ period_to.name }}',
+                    data: qualityTo,
+                    backgroundColor: 'rgba(25, 135, 84, 0.7)',
+                    borderColor: 'rgba(25, 135, 84, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: 'Сравнение качества знаний по классам'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'Процент (%)'
+                    }
+                }
+            }
+        }
+    });
+
+    // График успеваемости
+    const successCtx = document.getElementById('successChart').getContext('2d');
+    new Chart(successCtx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '{{ period_from.name }}',
+                    data: successFrom,
+                    backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                    borderColor: 'rgba(13, 110, 253, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '{{ period_to.name }}',
+                    data: successTo,
+                    backgroundColor: 'rgba(25, 135, 84, 0.7)',
+                    borderColor: 'rgba(25, 135, 84, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: 'Сравнение успеваемости по классам'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'Процент (%)'
+                    }
+                }
+            }
+        }
+    });
+
+    // Подсветка положительных и отрицательных изменений
+    const cells = document.querySelectorAll('td.text-success, td.text-danger');
+    cells.forEach(cell => {
+        if (cell.textContent.includes('+')) {
+            cell.classList.add('fw-bold');
+        }
+    });
+    {% endif %}
+});
+</script>
+
+<style>
+    .table-dark {
+        background-color: #343a40;
+        color: white;
+    }
+    .table tfoot {
+        border-top: 2px solid #dee2e6;
+        background-color: #f8f9fa;
+    }
+    .text-success {
+        color: #28a745 !important;
+        font-weight: bold;
+    }
+    .text-danger {
+        color: #dc3545 !important;
+        font-weight: bold;
+    }
+    .bg-primary {
+        background-color: #0d6efd !important;
+    }
+    .bg-info {
+        background-color: #0dcaf0 !important;
+    }
+    .bg-danger {
+        background-color: #dc3545 !important;
+    }
+    .bg-warning {
+        background-color: #ffc107 !important;
+    }
+    .bg-success {
+        background-color: #198754 !important;
+    }
+    canvas {
+        max-height: 300px;
+        width: 100% !important;
+    }
+</style>
+{% endblock %}
