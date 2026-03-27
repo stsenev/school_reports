@@ -1,0 +1,799 @@
+<!-- templates/reports/wizard/step1.html -->
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% load static %}
+{% load report_filters %}
+
+{% block title %}Шаг {{ step }} из {{ total_steps }}: {{ step_title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .wizard-progress {
+        margin-bottom: 2rem;
+    }
+    .progress-step {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        color: #6c757d;
+        line-height: 40px;
+        text-align: center;
+        font-weight: bold;
+        margin-right: 10px;
+    }
+    .progress-step.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .progress-step.completed {
+        background-color: #198754;
+        color: white;
+    }
+    .progress-line {
+        display: inline-block;
+        width: 50px;
+        height: 2px;
+        background-color: #e9ecef;
+        margin: 0 5px;
+    }
+    .progress-line.completed {
+        background-color: #198754;
+    }
+    .step-title {
+        font-size: 1.2rem;
+        color: #0d6efd;
+        margin-bottom: 1.5rem;
+    }
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #dee2e6;
+    }
+    .dynamic-formset {
+        background: white;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        border: 1px solid #dee2e6;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .remove-row {
+        margin-top: 1.5rem;
+    }
+    .movement-row {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid;
+        transition: all 0.3s ease;
+    }
+    .movement-row.outgoing {
+        border-left-color: #dc3545;
+    }
+    .movement-row.incoming {
+        border-left-color: #198754;
+    }
+    .movement-row:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .form-check-input {
+        margin-top: 0.3rem;
+        cursor: pointer;
+    }
+    .form-check-input:checked + label {
+        font-weight: bold;
+        color: #0d6efd;
+    }
+    .form-label {
+        font-weight: 500;
+        color: #495057;
+    }
+    .required-field label:after {
+        content: " *";
+        color: red;
+    }
+    .debug-info {
+        background-color: #e9ecef;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-top: 1rem;
+        font-family: monospace;
+        font-size: 0.9rem;
+    }
+    .errorlist {
+        color: #dc3545;
+        list-style: none;
+        padding: 0;
+        margin: 0.25rem 0;
+        font-size: 0.875rem;
+    }
+
+    /* Стили для полей класса и школы */
+    .target-class-field, .target-school-field,
+    .source-class-field, .source-school-field {
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background-color: #f8f9fa;
+        border-radius: 0.25rem;
+        border-left: 3px solid #0d6efd;
+    }
+
+    .target-school-field, .source-school-field {
+        border-left-color: #dc3545;
+    }
+
+    /* Стили для индикатора загрузки */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    .loading-overlay.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .loading-spinner {
+        text-align: center;
+        background: white;
+        padding: 2rem 3rem;
+        border-radius: 1rem;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        border: 1px solid #e9ecef;
+    }
+
+    .loading-spinner i {
+        font-size: 3rem;
+        color: #0d6efd;
+        margin-bottom: 1rem;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .loading-spinner p {
+        font-size: 1.2rem;
+        color: #495057;
+        margin: 0;
+        font-weight: 500;
+    }
+
+    .loading-spinner .small {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Индикатор загрузки -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner">
+        <i class="fas fa-circle-notch fa-spin"></i>
+        <p>Загрузка формы...</p>
+        <p class="small">Пожалуйста, подождите</p>
+    </div>
+</div>
+
+<div class="container-fluid">
+    <!-- Прогресс бар -->
+    <div class="row wizard-progress">
+        <div class="col-12 text-center">
+            {% for i in "12345"|make_list %}
+                {% if forloop.counter <= total_steps %}
+                    <span class="progress-step {% if forloop.counter < step %}completed{% elif forloop.counter == step %}active{% endif %}">
+                        {{ forloop.counter }}
+                    </span>
+                    {% if forloop.counter < total_steps %}
+                        <span class="progress-line {% if forloop.counter < step %}completed{% endif %}"></span>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="step-title">
+                <i class="fas fa-arrow-right text-primary me-2"></i>
+                Шаг {{ step }} из {{ total_steps }}: {{ step_title }}
+            </h2>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Класс:</strong> {{ report.school_class.name }} |
+                <strong>Период:</strong> {{ report.period.name }} {{ report.period.academic_year }}
+                {% if report.has_movement %}
+                <span class="badge bg-warning ms-2">Есть движение учеников</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+<!-- Информация о предзаполнении -->
+<!-- Информация о предзаполнении -->
+{% if is_prefilled and previous_report %}
+    {% if is_quarter1 %}
+    <div class="alert alert-success mb-4">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>Данные автоматически предзаполнены</strong>
+        <p class="mb-0 mt-2">
+            Данные о количестве учеников и движении скопированы из утвержденного отчета за
+            <strong>начало учебного года {{ previous_report.period.academic_year }}</strong>.
+            Пожалуйста, проверьте и откорректируйте при необходимости.
+        </p>
+    </div>
+    {% else %}
+    <div class="alert alert-success mb-4">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>Данные автоматически предзаполнены</strong>
+        <p class="mb-0 mt-2">
+            Данные о количестве учеников и движении скопированы из утвержденного отчета за
+            <strong>{{ previous_report.period.name }} {{ previous_report.period.academic_year }}</strong>.
+            Пожалуйста, проверьте и откорректируйте при необходимости.
+        </p>
+    </div>
+    {% endif %}
+{% endif %}
+
+
+    <!-- Отладочная информация (видна только при DEBUG=True) -->
+    {% if debug %}
+    <div class="alert alert-info mb-4">
+        <h5>Отладочная информация о движении учеников:</h5>
+        <p><strong>report.id:</strong> {{ report.id }}</p>
+        <p><strong>report.has_movement:</strong> {{ report.has_movement }}</p>
+        <p><strong>Количество записей в БД:</strong> {{ report.movements.count }}</p>
+        <p><strong>Данные из БД:</strong></p>
+        <ul>
+            {% for m in debug_movements %}
+            <li>{{ m.type }}: {{ m.name }} (приказ №{{ m.order }} от {{ m.date }})</li>
+            {% empty %}
+            <li>Нет записей</li>
+            {% endfor %}
+        </ul>
+        <p><strong>movement_initial в формсете:</strong> {{ movement_initial_count }} форм</p>
+        <p><strong>Количество форм в формсете:</strong> {{ movement_formset.total_form_count }}</p>
+    </div>
+    {% endif %}
+
+    <form method="post" id="stepForm" novalidate>
+        {% csrf_token %}
+
+        <!-- Основные данные -->
+        <div class="form-section">
+            <h4 class="mb-3">Основные данные</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group required-field">
+                        <label for="{{ form.total_students_end.id_for_label }}" class="form-label fw-bold">
+                            {{ form.total_students_end.label }}:
+                        </label>
+                        {{ form.total_students_end }}
+                        {% if form.total_students_end.errors %}
+                            <div class="errorlist">{{ form.total_students_end.errors }}</div>
+                        {% endif %}
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Количество учеников на конец периода
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Движение учеников -->
+        <div class="form-section">
+            <h4 class="mb-3">Движение учеников</h4>
+            <div class="form-check mb-3">
+                {{ form.has_movement }}
+                <label class="form-check-label fw-bold" for="{{ form.has_movement.id_for_label }}">
+                    Есть движение учеников
+                </label>
+            </div>
+
+            <div id="movement-section" style="{% if form.has_movement.value %}display: block;{% else %}display: none;{% endif %}">
+                {{ movement_formset.management_form }}
+
+                <div class="row">
+                    <!-- Выбывшие ученики -->
+                    <div class="col-md-6">
+                        <h5 class="text-danger mb-3">
+                            <i class="fas fa-arrow-right me-2"></i>
+                            Выбывшие ученики
+                        </h5>
+                        <div id="outgoing-students">
+                            {% for movement_form in movement_formset %}
+                                {% if movement_form.movement_type.value == 'out' %}
+                                    <div class="dynamic-formset outgoing-row movement-row outgoing" data-index="{{ forloop.counter0 }}">
+                                        <input type="hidden" name="movement-{{ forloop.counter0 }}-movement_type" value="out">
+
+                                        <div class="mb-3">
+                                            <label class="form-label">ФИО ученика</label>
+                                            <input type="text" name="movement-{{ forloop.counter0 }}-student_name"
+                                                   class="form-control" value="{{ movement_form.student_name.value|default:'' }}">
+                                        </div>
+
+                                        <div class="row mb-3">
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input type="checkbox" name="movement-{{ forloop.counter0 }}-moved_to_another_class"
+                                                           class="form-check-input movement-checkbox" id="moveto_class_{{ forloop.counter0 }}"
+                                                           {% if movement_form.moved_to_another_class.value %}checked{% endif %}>
+                                                    <label class="form-check-label" for="moveto_class_{{ forloop.counter0 }}">
+                                                        Выбыл в другой класс
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input type="checkbox" name="movement-{{ forloop.counter0 }}-moved_to_another_school"
+                                                           class="form-check-input movement-checkbox" id="moveto_school_{{ forloop.counter0 }}"
+                                                           {% if movement_form.moved_to_another_school.value %}checked{% endif %}>
+                                                    <label class="form-check-label" for="moveto_school_{{ forloop.counter0 }}">
+                                                        Выбыл в другую школу
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-3 target-class-field" style="{% if movement_form.moved_to_another_class.value %}display: block;{% else %}display: none;{% endif %}">
+                                            <label class="form-label">Класс</label>
+                                            <select name="movement-{{ forloop.counter0 }}-target_class" class="form-select">
+                                                <option value="">---------</option>
+                                                {% for class in classes %}
+                                                    <option value="{{ class.id }}"
+                                                            {% if movement_form.target_class.value|stringformat:"s" == class.id|stringformat:"s" %}selected{% endif %}>
+                                                        {{ class.name }}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-3 target-school-field" style="{% if movement_form.moved_to_another_school.value %}display: block;{% else %}display: none;{% endif %}">
+                                            <label class="form-label">Школа</label>
+                                            <input type="text" name="movement-{{ forloop.counter0 }}-target_school"
+                                                   class="form-control" value="{{ movement_form.target_school.value|default:'' }}">
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label">Номер приказа</label>
+                                            <input type="text" name="movement-{{ forloop.counter0 }}-order_number"
+                                                   class="form-control" value="{{ movement_form.order_number.value|default:'' }}">
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label">Дата приказа</label>
+                                            <input type="date" name="movement-{{ forloop.counter0 }}-order_date"
+                                                   class="form-control" value="{{ movement_form.order_date.value|date:'Y-m-d'|default:'' }}">
+                                        </div>
+
+                                        <div class="text-end">
+                                            <button type="button" class="btn btn-danger btn-sm remove-row">
+                                                <i class="fas fa-trash me-1"></i> Удалить
+                                            </button>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="btn btn-outline-danger btn-sm add-outgoing mt-2">
+                            <i class="fas fa-plus me-1"></i> Добавить выбывшего
+                        </button>
+                    </div>
+
+                    <!-- Прибывшие ученики -->
+                    <div class="col-md-6">
+                        <h5 class="text-success mb-3">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Прибывшие ученики
+                        </h5>
+                        <div id="incoming-students">
+                            {% for movement_form in movement_formset %}
+                                {% if movement_form.movement_type.value == 'in' %}
+                                    <div class="dynamic-formset incoming-row movement-row incoming" data-index="{{ forloop.counter0 }}">
+                                        <input type="hidden" name="movement-{{ forloop.counter0 }}-movement_type" value="in">
+
+                                        <div class="mb-3">
+                                            <label class="form-label">ФИО ученика</label>
+                                            <input type="text" name="movement-{{ forloop.counter0 }}-student_name"
+                                                   class="form-control" value="{{ movement_form.student_name.value|default:'' }}">
+                                        </div>
+
+                                        <div class="row mb-3">
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input type="checkbox" name="movement-{{ forloop.counter0 }}-came_from_another_class"
+                                                           class="form-check-input movement-checkbox" id="comefrom_class_{{ forloop.counter0 }}"
+                                                           {% if movement_form.came_from_another_class.value %}checked{% endif %}>
+                                                    <label class="form-check-label" for="comefrom_class_{{ forloop.counter0 }}">
+                                                        Прибыл из другого класса
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input type="checkbox" name="movement-{{ forloop.counter0 }}-came_from_another_school"
+                                                           class="form-check-input movement-checkbox" id="comefrom_school_{{ forloop.counter0 }}"
+                                                           {% if movement_form.came_from_another_school.value %}checked{% endif %}>
+                                                    <label class="form-check-label" for="comefrom_school_{{ forloop.counter0 }}">
+                                                        Прибыл из другой школы
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-3 source-class-field" style="{% if movement_form.came_from_another_class.value %}display: block;{% else %}display: none;{% endif %}">
+                                            <label class="form-label">Класс</label>
+                                            <select name="movement-{{ forloop.counter0 }}-source_class" class="form-select">
+                                                <option value="">---------</option>
+                                                {% for class in classes %}
+                                                    <option value="{{ class.id }}"
+                                                            {% if movement_form.source_class.value|stringformat:"s" == class.id|stringformat:"s" %}selected{% endif %}>
+                                                        {{ class.name }}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-3 source-school-field" style="{% if movement_form.came_from_another_school.value %}display: block;{% else %}display: none;{% endif %}">
+                                            <label class="form-label">Школа</label>
+                                            <input type="text" name="movement-{{ forloop.counter0 }}-source_school"
+                                                   class="form-control" value="{{ movement_form.source_school.value|default:'' }}">
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label">Номер приказа</label>
+                                            <input type="text" name="movement-{{ forloop.counter0 }}-order_number"
+                                                   class="form-control" value="{{ movement_form.order_number.value|default:'' }}">
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label">Дата приказа</label>
+                                            <input type="date" name="movement-{{ forloop.counter0 }}-order_date"
+                                                   class="form-control" value="{{ movement_form.order_date.value|date:'Y-m-d'|default:'' }}">
+                                        </div>
+
+                                        <div class="text-end">
+                                            <button type="button" class="btn btn-danger btn-sm remove-row">
+                                                <i class="fas fa-trash me-1"></i> Удалить
+                                            </button>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="btn btn-outline-success btn-sm add-incoming mt-2">
+                            <i class="fas fa-plus me-1"></i> Добавить прибывшего
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Кнопки навигации -->
+        <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'wizard_cancel' report.id %}" class="btn btn-danger">
+                <i class="fas fa-times me-2"></i> Отмена
+            </a>
+            <div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i> Сохранить и продолжить
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM загружен, инициализация шага 1...');
+
+    // Получаем ссылку на оверлей загрузки
+    const loadingOverlay = document.getElementById('loadingOverlay');
+
+    const hasMovementCheckbox = document.getElementById('{{ form.has_movement.id_for_label }}');
+    const movementSection = document.getElementById('movement-section');
+
+    if (hasMovementCheckbox) {
+        console.log('Найден чекбокс движения учеников');
+        console.log('Начальное состояние чекбокса:', hasMovementCheckbox.checked);
+
+        // Устанавливаем начальное состояние
+        if (hasMovementCheckbox.checked) {
+            movementSection.style.display = 'block';
+            console.log('Чекбокс отмечен, секция движения показана');
+        } else {
+            movementSection.style.display = 'none';
+            console.log('Чекбокс не отмечен, секция движения скрыта');
+        }
+
+        hasMovementCheckbox.addEventListener('change', function() {
+            console.log('Чекбокс движения изменен:', this.checked);
+            movementSection.style.display = this.checked ? 'block' : 'none';
+        });
+    } else {
+        console.log('Чекбокс движения учеников не найден');
+    }
+
+    // Инициализация обработчиков для существующих строк
+    initExistingRows();
+
+    // Кнопки добавления
+    document.querySelector('.add-outgoing')?.addEventListener('click', function() {
+        addMovementRow('out');
+    });
+
+    document.querySelector('.add-incoming')?.addEventListener('click', function() {
+        addMovementRow('in');
+    });
+
+    function initExistingRows() {
+        // Для выбывших учеников
+        document.querySelectorAll('.outgoing-row').forEach(row => {
+            const classCheckbox = row.querySelector('[name$="-moved_to_another_class"]');
+            const schoolCheckbox = row.querySelector('[name$="-moved_to_another_school"]');
+            const classField = row.querySelector('.target-class-field');
+            const schoolField = row.querySelector('.target-school-field');
+
+            // Устанавливаем начальное состояние полей
+            updateFieldVisibility(classCheckbox, schoolCheckbox, classField, schoolField);
+
+            // Добавляем обработчики
+            if (classCheckbox) {
+                classCheckbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        schoolCheckbox.checked = false;
+                    }
+                    updateFieldVisibility(classCheckbox, schoolCheckbox, classField, schoolField);
+                });
+            }
+
+            if (schoolCheckbox) {
+                schoolCheckbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        classCheckbox.checked = false;
+                    }
+                    updateFieldVisibility(classCheckbox, schoolCheckbox, classField, schoolField);
+                });
+            }
+        });
+
+        // Для прибывших учеников
+        document.querySelectorAll('.incoming-row').forEach(row => {
+            const classCheckbox = row.querySelector('[name$="-came_from_another_class"]');
+            const schoolCheckbox = row.querySelector('[name$="-came_from_another_school"]');
+            const classField = row.querySelector('.source-class-field');
+            const schoolField = row.querySelector('.source-school-field');
+
+            // Устанавливаем начальное состояние полей
+            updateFieldVisibility(classCheckbox, schoolCheckbox, classField, schoolField);
+
+            // Добавляем обработчики
+            if (classCheckbox) {
+                classCheckbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        schoolCheckbox.checked = false;
+                    }
+                    updateFieldVisibility(classCheckbox, schoolCheckbox, classField, schoolField);
+                });
+            }
+
+            if (schoolCheckbox) {
+                schoolCheckbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        classCheckbox.checked = false;
+                    }
+                    updateFieldVisibility(classCheckbox, schoolCheckbox, classField, schoolField);
+                });
+            }
+        });
+    }
+
+    function updateFieldVisibility(classCheckbox, schoolCheckbox, classField, schoolField) {
+        if (!classField || !schoolField) return;
+
+        if (classCheckbox && classCheckbox.checked) {
+            // Выбран класс - показываем поле класса, скрываем поле школы
+            classField.style.display = 'block';
+            schoolField.style.display = 'none';
+        } else if (schoolCheckbox && schoolCheckbox.checked) {
+            // Выбрана школа - показываем поле школы, скрываем поле класса
+            schoolField.style.display = 'block';
+            classField.style.display = 'none';
+        } else {
+            // Ничего не выбрано - скрываем оба поля
+            classField.style.display = 'none';
+            schoolField.style.display = 'none';
+        }
+    }
+
+    function addMovementRow(type) {
+        const container = type === 'out' ? 'outgoing-students' : 'incoming-students';
+        const containerElement = document.getElementById(container);
+        const index = containerElement.querySelectorAll('.dynamic-formset').length;
+        const prefix = 'movement';
+
+        console.log(`Добавление новой строки движения типа ${type} с индексом ${index}`);
+
+        let template = `
+            <div class="dynamic-formset ${type}going-row movement-row ${type === 'out' ? 'outgoing' : 'incoming'}" data-index="${index}">
+                <input type="hidden" name="${prefix}-${index}-movement_type" value="${type}">
+
+                <div class="mb-3">
+                    <label class="form-label">ФИО ученика</label>
+                    <input type="text" name="${prefix}-${index}-student_name" class="form-control">
+                </div>
+        `;
+
+        if (type === 'out') {
+            template += `
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input type="checkbox" name="${prefix}-${index}-moved_to_another_class" class="form-check-input movement-checkbox" id="moveto_class_${index}">
+                            <label class="form-check-label" for="moveto_class_${index}">Выбыл в другой класс</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input type="checkbox" name="${prefix}-${index}-moved_to_another_school" class="form-check-input movement-checkbox" id="moveto_school_${index}">
+                            <label class="form-check-label" for="moveto_school_${index}">Выбыл в другую школу</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3 target-class-field" style="display: none;">
+                    <label class="form-label">Класс</label>
+                    <select name="${prefix}-${index}-target_class" class="form-select">
+                        <option value="">---------</option>
+                        {% for class in classes %}
+                        <option value="{{ class.id }}">{{ class.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3 target-school-field" style="display: none;">
+                    <label class="form-label">Школа</label>
+                    <input type="text" name="${prefix}-${index}-target_school" class="form-control">
+                </div>
+            `;
+        } else {
+            template += `
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input type="checkbox" name="${prefix}-${index}-came_from_another_class" class="form-check-input movement-checkbox" id="comefrom_class_${index}">
+                            <label class="form-check-label" for="comefrom_class_${index}">Прибыл из другого класса</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input type="checkbox" name="${prefix}-${index}-came_from_another_school" class="form-check-input movement-checkbox" id="comefrom_school_${index}">
+                            <label class="form-check-label" for="comefrom_school_${index}">Прибыл из другой школы</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3 source-class-field" style="display: none;">
+                    <label class="form-label">Класс</label>
+                    <select name="${prefix}-${index}-source_class" class="form-select">
+                        <option value="">---------</option>
+                        {% for class in classes %}
+                        <option value="{{ class.id }}">{{ class.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3 source-school-field" style="display: none;">
+                    <label class="form-label">Школа</label>
+                    <input type="text" name="${prefix}-${index}-source_school" class="form-control">
+                </div>
+            `;
+        }
+
+        template += `
+            <div class="mb-3">
+                <label class="form-label">Номер приказа</label>
+                <input type="text" name="${prefix}-${index}-order_number" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Дата приказа</label>
+                <input type="date" name="${prefix}-${index}-order_date" class="form-control">
+            </div>
+            <div class="text-end">
+                <button type="button" class="btn btn-danger btn-sm remove-row">
+                    <i class="fas fa-trash me-1"></i> Удалить
+                </button>
+            </div>
+        </div>
+        `;
+
+        document.getElementById(container).insertAdjacentHTML('beforeend', template);
+
+        // Добавляем обработчики для новой строки
+        const newRow = containerElement.lastElementChild;
+        const classCheckbox = newRow.querySelector(type === 'out' ? '[name$="-moved_to_another_class"]' : '[name$="-came_from_another_class"]');
+        const schoolCheckbox = newRow.querySelector(type === 'out' ? '[name$="-moved_to_another_school"]' : '[name$="-came_from_another_school"]');
+        const classField = newRow.querySelector(type === 'out' ? '.target-class-field' : '.source-class-field');
+        const schoolField = newRow.querySelector(type === 'out' ? '.target-school-field' : '.source-school-field');
+
+        if (classCheckbox) {
+            classCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    schoolCheckbox.checked = false;
+                }
+                updateFieldVisibility(classCheckbox, schoolCheckbox, classField, schoolField);
+            });
+        }
+
+        if (schoolCheckbox) {
+            schoolCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    classCheckbox.checked = false;
+                }
+                updateFieldVisibility(classCheckbox, schoolCheckbox, classField, schoolField);
+            });
+        }
+
+        updateMovementManagementForm();
+    }
+
+    function updateMovementManagementForm() {
+        const totalOutgoing = document.querySelectorAll('#outgoing-students .dynamic-formset').length;
+        const totalIncoming = document.querySelectorAll('#incoming-students .dynamic-formset').length;
+        const total = totalOutgoing + totalIncoming;
+
+        const managementInput = document.querySelector('#id_movement-TOTAL_FORMS');
+        if (managementInput) {
+            managementInput.value = total;
+            console.log('Обновлен movement-TOTAL_FORMS:', total);
+        }
+    }
+
+    // Обработчик удаления строк
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-row') || e.target.closest('.remove-row')) {
+            const row = e.target.closest('.dynamic-formset');
+            if (row && confirm('Удалить эту запись?')) {
+                console.log('Удаление строки движения');
+                row.remove();
+                updateMovementManagementForm();
+            }
+        }
+    });
+
+    // Первоначальное обновление management form
+    setTimeout(function() {
+        updateMovementManagementForm();
+        console.log('Первоначальное обновление management form выполнено');
+        console.log('Всего строк движения:', document.querySelectorAll('#outgoing-students .dynamic-formset, #incoming-students .dynamic-formset').length);
+
+        // Скрываем оверлей загрузки
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+        }
+    }, 100);
+
+    // Добавляем обработчик для отправки формы
+    document.getElementById('stepForm').addEventListener('submit', function(e) {
+        console.log('Форма отправляется');
+        updateMovementManagementForm();
+    });
+});
+</script>
+{% endblock %}

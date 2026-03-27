@@ -1,0 +1,955 @@
+<!-- templates/reports/view_report.html -->
+{% extends 'base.html' %}
+{% load report_filters %}
+
+{% block title %}Просмотр отчета{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="mb-3">
+                <i class="fas fa-file-alt text-primary me-2"></i>
+                Отчет классного руководителя
+            </h1>
+            <div class="alert alert-info d-flex justify-content-between align-items-center">
+                <div>
+                    <p class="mb-1">
+                        <i class="fas fa-user me-2"></i>
+                        <strong>Учитель:</strong> {{ report.teacher.full_name }}
+                    </p>
+                    <p class="mb-1">
+                        <i class="fas fa-users me-2"></i>
+                        <strong>Класс:</strong> {{ report.school_class.name }}
+                    </p>
+                    <p class="mb-1">
+                        <i class="fas fa-calendar-alt me-2"></i>
+                        <strong>Период:</strong> {{ report.period.name }} {{ report.period.academic_year }}
+                    </p>
+                </div>
+                <div>
+                    <span class="badge bg-{{ report.status|status_color }} fs-6 p-2">
+                        <i class="fas {% if report.status == 'draft' %}fa-pen
+                                     {% elif report.status == 'submitted' %}fa-paper-plane
+                                     {% elif report.status == 'approved' %}fa-check-circle
+                                     {% elif report.status == 'rejected' %}fa-times-circle
+                                     {% endif %} me-1"></i>
+                        {{ report.status|verbose_status }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Раздел 1. Контингент учеников -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">Раздел 1. Контингент учеников</h3>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h5 class="card-title">Основные показатели</h5>
+                            <p class="mb-1"><strong>Количество учеников на конец периода:</strong> {{ report.total_students_end }}</p>
+                            {% if family_education and family_education.has_family_education %}
+                                <p class="mb-1"><strong>На семейном обучении:</strong> {{ family_education.count }}</p>
+                            {% endif %}
+                            <p><strong>Обучаются очно:</strong> {{ report.in_person_students_count }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Движение учеников -->
+            {% if movements %}
+            <h4 class="mt-4 mb-3">1.1 Движение учеников</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card border-danger mb-3">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0">Выбывшие ученики</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>№</th>
+                                        <th>ФИО ученика</th>
+                                        <th>Куда</th>
+                                        <th>Приказ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for movement in movements %}
+                                        {% if movement.movement_type == 'out' %}
+                                        <tr>
+                                            <td>{{ forloop.counter }}</td>
+                                            <td>{{ movement.student_name }}</td>
+                                            <td>
+                                                {% if movement.moved_to_another_class %}
+                                                    в класс {{ movement.target_class.name }}
+                                                {% elif movement.moved_to_another_school %}
+                                                    в школу {{ movement.target_school }}
+                                                {% endif %}
+                                            </td>
+                                            <td>№{{ movement.order_number }} от {{ movement.order_date|date:"d.m.Y" }}</td>
+                                        </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-success mb-3">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">Прибывшие ученики</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>№</th>
+                                        <th>ФИО ученика</th>
+                                        <th>Откуда</th>
+                                        <th>Приказ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for movement in movements %}
+                                        {% if movement.movement_type == 'in' %}
+                                        <tr>
+                                            <td>{{ forloop.counter }}</td>
+                                            <td>{{ movement.student_name }}</td>
+                                            <td>
+                                                {% if movement.came_from_another_class %}
+                                                    из класса {{ movement.source_class.name }}
+                                                {% elif movement.came_from_another_school %}
+                                                    из школы {{ movement.source_school }}
+                                                {% endif %}
+                                            </td>
+                                            <td>№{{ movement.order_number }} от {{ movement.order_date|date:"d.m.Y" }}</td>
+                                        </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Семейное обучение -->
+            {% if family_education and family_education.has_family_education %}
+            <h4 class="mt-4 mb-3">1.2 Семейное обучение</h4>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <p><strong>Количество:</strong> {{ family_education.count }}</p>
+                    {% if family_education.students.all %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>№</th>
+                                    <th>ФИО ученика</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in family_education.students.all %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ student.full_name }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Возрастные группы -->
+            <h4 class="mt-4 mb-3">Возрастные группы</h4>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <table class="table table-bordered table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Год рождения</th>
+                                <th>Мальчики</th>
+                                <th>Девочки</th>
+                                <th>Всего</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for group in age_groups %}
+                            <tr>
+                                <td>{{ group.birth_year }}</td>
+                                <td>{{ group.boys_count }}</td>
+                                <td>{{ group.girls_count }}</td>
+                                <td>{{ group.boys_count|add:group.girls_count }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">Данные не указаны</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Группы здоровья (только для начала года) -->
+            {% if health_groups %}
+            <h4 class="mt-4 mb-3">1.3 Группы здоровья</h4>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>1 группа</th>
+                                <th>2 группа</th>
+                                <th>3 группа</th>
+                                <th>4 группа</th>
+                                <th>5 группа</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>{{ health_groups.group1 }}</td>
+                                <td>{{ health_groups.group2 }}</td>
+                                <td>{{ health_groups.group3 }}</td>
+                                <td>{{ health_groups.group4 }}</td>
+                                <td>{{ health_groups.group5 }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Физкультурные группы -->
+            {% if phys_ed_groups %}
+            <h4 class="mt-4 mb-3">Физкультурные группы</h4>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Основная группа</th>
+                                <th>Подготовительная группа</th>
+                                <th>Специальная группа</th>
+                                <th>Освобождены</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>{{ phys_ed_groups.main_group }}</td>
+                                <td>{{ phys_ed_groups.preparatory_group }}</td>
+                                <td>{{ phys_ed_groups.special_group }}</td>
+                                <td>{{ phys_ed_groups.exempt_count }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    {% if phys_ed_groups.exempt_count > 0 and phys_ed_groups.exempt_students.all %}
+                    <div class="mt-3">
+                        <h6 class="text-primary">
+                            <i class="fas fa-user-slash me-2"></i>
+                            Освобожденные ученики ({{ phys_ed_groups.exempt_students.count }}):
+                        </h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>№</th>
+                                        <th>ФИО ученика</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in phys_ed_groups.exempt_students.all %}
+                                    <tr>
+                                        <td>{{ forloop.counter }}</td>
+                                        <td>{{ student.full_name }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Дети с ОВЗ -->
+            {% if special_needs %}
+            <h4 class="mt-4 mb-3">Дети с ОВЗ / инвалиды</h4>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <!-- Сводная таблица -->
+                    <table class="table table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Категория</th>
+                                <th>Количество</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Дети-инвалиды</td>
+                                <td>{{ special_needs.disabled_count }}</td>
+                            </tr>
+                            <tr>
+                                <td>Дети с ОВЗ</td>
+                                <td>{{ special_needs.special_needs_count }}</td>
+                            </tr>
+                            <tr>
+                                <td>Дети-инвалиды с ОВЗ</td>
+                                <td>{{ special_needs.disabled_special_needs_count }}</td>
+                            </tr>
+                            <tr>
+                                <td>Обучающиеся на дому</td>
+                                <td>{{ special_needs.home_schooling_count }}</td>
+                            </tr>
+                            <tr>
+                                <td>из них дети-инвалиды</td>
+                                <td>{{ special_needs.home_schooling_disabled_count }}</td>
+                            </tr>
+                            <tr>
+                                <td>Опекаемые дети</td>
+                                <td>{{ special_needs.foster_care_count }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Дети-инвалиды -->
+                    {% if special_needs.disabled_count > 0 %}
+                    <div class="mt-4">
+                        <h5 class="text-danger">
+                            <i class="fas fa-wheelchair me-2"></i>
+                            Дети-инвалиды ({{ special_needs.disabled_count }})
+                        </h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>№</th>
+                                        <th>ФИО ученика</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in special_needs.students.all %}
+                                        {% if student.student_type == 'disabled' %}
+                                        <tr>
+                                            <td>{{ forloop.counter }}</td>
+                                            <td>{{ student.full_name }}</td>
+                                        </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Дети с ОВЗ -->
+                    {% if special_needs.special_needs_count > 0 %}
+                    <div class="mt-4">
+                        <h5 class="text-warning">
+                            <i class="fas fa-heart me-2"></i>
+                            Дети с ОВЗ ({{ special_needs.special_needs_count }})
+                        </h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>№</th>
+                                        <th>ФИО ученика</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in special_needs.students.all %}
+                                        {% if student.student_type == 'special_needs' %}
+                                        <tr>
+                                            <td>{{ forloop.counter }}</td>
+                                            <td>{{ student.full_name }}</td>
+                                        </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Дети-инвалиды с ОВЗ -->
+                    {% if special_needs.disabled_special_needs_count > 0 %}
+                    <div class="mt-4">
+                        <h5 class="text-info">
+                            <i class="fas fa-heartbeat me-2"></i>
+                            Дети-инвалиды с ОВЗ ({{ special_needs.disabled_special_needs_count }})
+                        </h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>№</th>
+                                        <th>ФИО ученика</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in special_needs.students.all %}
+                                        {% if student.student_type == 'disabled_special' %}
+                                        <tr>
+                                            <td>{{ forloop.counter }}</td>
+                                            <td>{{ student.full_name }}</td>
+                                        </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Обучающиеся на дому -->
+                    {% if special_needs.home_schooling_count > 0 %}
+                    <div class="mt-4">
+                        <h5 class="text-primary">
+                            <i class="fas fa-home me-2"></i>
+                            Обучающиеся на дому ({{ special_needs.home_schooling_count }})
+                        </h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>№</th>
+                                        <th>ФИО ученика</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in special_needs.students.all %}
+                                        {% if student.student_type == 'home_schooling' %}
+                                        <tr>
+                                            <td>{{ forloop.counter }}</td>
+                                            <td>{{ student.full_name }}</td>
+                                        </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Опекаемые дети -->
+                    {% if special_needs.foster_care_count > 0 %}
+                    <div class="mt-4">
+                        <h5 class="text-success">
+                            <i class="fas fa-heart me-2"></i>
+                            Опекаемые дети ({{ special_needs.foster_care_count }})
+                        </h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>№</th>
+                                        <th>ФИО ученика</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in special_needs.students.all %}
+                                        {% if student.student_type == 'foster_care' %}
+                                        <tr>
+                                            <td>{{ forloop.counter }}</td>
+                                            <td>{{ student.full_name }}</td>
+                                        </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Раздел 2. Успеваемость (только если есть данные) -->
+    {% if academic %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h3 class="mb-0">Раздел 2. Успеваемость</h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Показатель</th>
+                                <th>Количество</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Отличники</td>
+                                <td>{{ academic.excellent_count }}</td>
+                            </tr>
+                            <tr>
+                                <td>Ударники</td>
+                                <td>{{ academic.good_count }}</td>
+                            </tr>
+                            <tr>
+                                <td>С одной "4"</td>
+                                <td>{{ academic.one_four_count }}</td>
+                            </tr>
+                            <tr>
+                                <td>С одной "3"</td>
+                                <td>{{ academic.one_three_count }}</td>
+                            </tr>
+                            <tr>
+                                <td>Двоечники</td>
+                                <td>{{ academic.poor_count }}</td>
+                            </tr>
+                            <tr>
+                                <td>Не аттестованы</td>
+                                <td>{{ academic.not_attested_count }}</td>
+                            </tr>
+                            {% if report.period.period_type == 'year' %}
+                            <tr>
+                                <td>Оставлены на повторный год</td>
+                                <td>{{ academic.retained_count }}</td>
+                            </tr>
+                            <tr>
+                                <td>Переведены условно</td>
+                                <td>{{ academic.conditionally_promoted_count }}</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Показатели качества</h5>
+                            <div class="row mt-3">
+                                <div class="col-6">
+                                    <div class="display-4 text-primary">{{ quality }}%</div>
+                                    <p class="text-muted">Качество знаний</p>
+                                </div>
+                                <div class="col-6">
+                                    <div class="display-4 text-success">{{ success }}%</div>
+                                    <p class="text-muted">Успеваемость</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Отличники -->
+            {% if excellent_students %}
+            <h4 class="mt-4 mb-3">Отличники:</h4>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>№</th>
+                            <th>ФИО ученика</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in excellent_students %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ student.full_name }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- С одной "4" -->
+            {% if one_four_students %}
+            <h4 class="mt-4 mb-3">С одной "4":</h4>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>№</th>
+                            <th>ФИО ученика</th>
+                            <th>Предмет</th>
+                            <th>Учитель</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in one_four_students %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ student.full_name }}</td>
+                            <td>{{ student.subject }}</td>
+                            <td>{{ student.teacher }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- С одной "3" -->
+            {% if one_three_students %}
+            <h4 class="mt-4 mb-3">С одной "3":</h4>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>№</th>
+                            <th>ФИО ученика</th>
+                            <th>Предмет</th>
+                            <th>Учитель</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in one_three_students %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ student.full_name }}</td>
+                            <td>{{ student.subject }}</td>
+                            <td>{{ student.teacher }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Двоечники -->
+            {% if poor_students %}
+            <h4 class="mt-4 mb-3">Двоечники:</h4>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>№</th>
+                            <th>ФИО ученика</th>
+                            <th>Предмет</th>
+                            <th>Учитель</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in poor_students %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ student.full_name }}</td>
+                            <td>{{ student.subject }}</td>
+                            <td>{{ student.teacher }}</td>
+                            <td>
+                                {% if student.is_recurring %}
+                                <span class="badge bg-danger" title="Имеет двойку по этому предмету в предыдущем периоде">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>Сквозная двойка
+                                </span>
+                                {% else %}
+                                <span class="badge bg-secondary">Первичная</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Не аттестованы -->
+            {% if not_attested_students %}
+            <h4 class="mt-4 mb-3">Не аттестованы:</h4>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>№</th>
+                            <th>ФИО ученика</th>
+                            <th>Предметы</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in not_attested_students %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ student.full_name }}</td>
+                            <td>{{ student.subjects }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Для годового отчета -->
+            {% if report.period.period_type == 'year' %}
+                {% if retained_students %}
+                <h4 class="mt-4 mb-3">Оставленные на повторный год:</h4>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>№</th>
+                                <th>ФИО ученика</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in retained_students %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ student.full_name }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                {% if conditionally_promoted_students %}
+                <h4 class="mt-4 mb-3">Переведенные условно:</h4>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>№</th>
+                                <th>ФИО ученика</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in conditionally_promoted_students %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ student.full_name }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            {% endif %}
+
+            <!-- Пропуски -->
+            <h4 class="mt-4 mb-3">Пропуски занятий</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Показатель</th>
+                                <th>Количество</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Пропущено учебных дней</td>
+                                <td>{{ academic.days_missed }}</td>
+                            </tr>
+                            <tr>
+                                <td>из них по болезни</td>
+                                <td>{{ academic.days_missed_illness }}</td>
+                            </tr>
+                            <tr>
+                                <td>Пропущено уроков всего</td>
+                                <td>{{ academic.lessons_missed }}</td>
+                            </tr>
+                            <tr>
+                                <td>из них по болезни</td>
+                                <td>{{ academic.lessons_missed_illness }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <table class="table table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Травматизм</th>
+                                <th>Количество</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>В школе</td>
+                                <td>{{ academic.injury_school }}</td>
+                            </tr>
+                            <tr>
+                                <td>Вне школы</td>
+                                <td>{{ academic.injury_outside }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Кнопки действий -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Назад
+                    </a>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    {% if report.status == 'draft' and user.is_teacher %}
+                        <a href="{% url 'wizard_step1' report.id %}" class="btn btn-warning">
+                            <i class="fas fa-edit me-2"></i>Редактировать
+                        </a>
+                        <form method="post" action="{% url 'submit_report' report.id %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-paper-plane me-2"></i>Отправить на проверку
+                            </button>
+                        </form>
+                        <a href="{% url 'delete_report' report.id %}" class="btn btn-danger">
+                            <i class="fas fa-trash me-2"></i>Удалить
+                        </a>
+                    {% endif %}
+
+                    {% if user.is_head_teacher %}
+                        <!-- Кнопки для завуча -->
+                        {% if report.status == 'submitted' %}
+                            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#approveModal">
+                                <i class="fas fa-check me-2"></i>Утвердить
+                            </button>
+                            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                                <i class="fas fa-times me-2"></i>Отклонить
+                            </button>
+                        {% endif %}
+
+                        <!-- Кнопка изменения статуса для завуча (доступна всегда) -->
+                        <a href="{% url 'change_report_status' report.id %}" class="btn btn-warning">
+                            <i class="fas fa-sync-alt me-2"></i>Изменить статус
+                        </a>
+
+                        <!-- Завуч тоже может удалять черновики -->
+                        {% if report.status == 'draft' %}
+                            <a href="{% url 'delete_report' report.id %}" class="btn btn-danger">
+                                <i class="fas fa-trash me-2"></i>Удалить черновик
+                            </a>
+                        {% endif %}
+                    {% endif %}
+
+                    <button onclick="window.print()" class="btn btn-info">
+                        <i class="fas fa-print me-2"></i>Печать
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальные окна для завуча -->
+{% if report.status == 'submitted' and user.is_head_teacher %}
+<!-- Modal для утверждения -->
+<div class="modal fade" id="approveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{% url 'approve_report' report.id %}" method="post">
+                {% csrf_token %}
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Утверждение отчета
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Вы уверены, что хотите утвердить этот отчет?</p>
+                    <div class="alert alert-info">
+                        <p class="mb-1"><strong>Учитель:</strong> {{ report.teacher.full_name }}</p>
+                        <p class="mb-1"><strong>Класс:</strong> {{ report.school_class.name }}</p>
+                        <p class="mb-0"><strong>Период:</strong> {{ report.period.name }}</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check me-2"></i>Утвердить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal для отклонения -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{% url 'reject_report' report.id %}" method="post">
+                {% csrf_token %}
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-times-circle me-2"></i>
+                        Отклонение отчета
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="reason" class="form-label">Причина отклонения</label>
+                        <textarea name="reason" id="reason" class="form-control" rows="4" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-times me-2"></i>Отклонить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% block extra_css %}
+<style>
+    @media print {
+        .btn, .modal, footer, .navbar {
+            display: none !important;
+        }
+        .card {
+            border: 1px solid #000 !important;
+            break-inside: avoid;
+        }
+        .badge {
+            border: 1px solid #000 !important;
+            color: #000 !important;
+            background: #fff !important;
+        }
+    }
+    .table-dark {
+        background-color: #343a40;
+        color: #fff;
+    }
+    .table-sm th, .table-sm td {
+        padding: 0.5rem;
+    }
+    .btn-group {
+        gap: 0.25rem;
+    }
+    .btn-group .btn {
+        border-radius: 0.25rem !important;
+    }
+</style>
+{% endblock %}
+{% endblock %}

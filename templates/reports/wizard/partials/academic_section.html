@@ -1,0 +1,1250 @@
+<!-- templates/reports/wizard/partials/academic_section.html -->
+{% load crispy_forms_tags %}
+{% load report_filters %}
+
+<style>
+    .subject-row {
+        border-left-width: 4px;
+        border-left-style: solid;
+        transition: all 0.3s ease;
+    }
+    .subject-row:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .border-left-excellent {
+        border-left-color: #ffc107;
+    }
+    .border-left-one_four {
+        border-left-color: #0dcaf0;
+    }
+    .border-left-one_three {
+        border-left-color: #fd7e14;
+    }
+    .border-left-poor {
+        border-left-color: #dc3545;
+    }
+    .border-left-not_attested {
+        border-left-color: #6c757d;
+    }
+    .subject-item {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        border-radius: 0.5rem;
+        border: 1px solid #dee2e6;
+        position: relative;
+    }
+    .subject-item:hover {
+        background-color: #e9ecef;
+    }
+    .remove-subject {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+    }
+    .counter-badge {
+        font-size: 1rem;
+        padding: 0.35rem 0.65rem;
+        background-color: white;
+        color: #333;
+        border: 1px solid #dee2e6;
+        border-radius: 20px;
+        margin-left: 10px;
+    }
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .add-btn-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid #dee2e6;
+    }
+    .total-count {
+        font-size: 1rem;
+        font-weight: 500;
+        color: #495057;
+        background-color: #e9ecef;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+    }
+    .empty-message {
+        color: #6c757d;
+        font-style: italic;
+        text-align: center;
+        padding: 2rem;
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+        border: 2px dashed #dee2e6;
+    }
+    .section-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .subject-item {
+        animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .quality-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+    .success-card {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        border: none;
+    }
+    .stats-card {
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+</style>
+
+<!-- Отличники -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-warning text-white">
+                <div class="section-title">
+                    <i class="fas fa-star"></i>
+                    <span>Отличники</span>
+                </div>
+                <span class="badge bg-light text-dark counter-badge" id="excellent-counter">0</span>
+            </div>
+            <div class="card-body">
+                <!-- Скрытое поле для количества отличников -->
+                <input type="hidden" name="academic-excellent_count" id="id_academic-excellent_count" value="0">
+
+                {{ excellent_formset.management_form }}
+                <div id="excellent-students" class="students-container">
+                    {% for form in excellent_formset %}
+                        <div class="dynamic-formset excellent-row subject-row border-left-excellent mb-3 p-3" data-index="{{ forloop.counter0 }}" data-prefix="excellent">
+                            <div class="row">
+                                <div class="col-md-10">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">ФИО ученика</label>
+                                        <input type="text" name="excellent-{{ forloop.counter0 }}-full_name"
+                                               class="form-control student-name" value="{{ form.full_name.value|default:'' }}" required>
+                                        {% if form.full_name.errors %}
+                                            <div class="errorlist">{{ form.full_name.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-danger btn-sm remove-excellent-row mt-4" title="Удалить отличника">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="empty-message">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Нет добавленных отличников
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="add-btn-container">
+                    <span class="total-count">
+                        <i class="fas fa-users me-1"></i>
+                        Всего: <span id="excellent-total">0</span>
+                    </span>
+                    <button type="button" class="btn btn-outline-warning btn-sm add-excellent-btn">
+                        <i class="fas fa-plus me-1"></i> Добавить отличника
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ударники (без перечисления) -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <div class="section-title">
+                    <i class="fas fa-users"></i>
+                    <span>Ударники</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="{{ academic_form.good_count.id_for_label }}" class="form-label">Количество ударников:</label>
+                    <input type="number" name="{{ academic_form.good_count.html_name }}"
+                           class="form-control good-count-field" min="0" value="{{ academic_form.good_count.value|default:0 }}"
+                           id="{{ academic_form.good_count.id_for_label }}">
+                    {% if academic_form.good_count.errors %}
+                        <div class="errorlist">{{ academic_form.good_count.errors }}</div>
+                    {% endif %}
+                </div>
+                <small class="text-muted d-block mt-2">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Ударники вводятся без перечисления
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- С одной "4" -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <div class="section-title">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span>С одной "4"</span>
+                </div>
+                <span class="badge bg-light text-dark counter-badge" id="one-four-counter">0</span>
+            </div>
+            <div class="card-body">
+                <!-- Скрытое поле для количества учеников с одной 4 -->
+                <input type="hidden" name="academic-one_four_count" id="id_academic-one_four_count" value="0">
+
+                {{ one_four_formset.management_form }}
+                <div id="one-four-students" class="students-container">
+                    {% for form in one_four_formset %}
+                        <div class="dynamic-formset one-four-row subject-row border-left-one_four mb-3 p-3" data-index="{{ forloop.counter0 }}" data-prefix="one_four">
+                            <div class="row">
+                                <div class="col-md-10">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">ФИО ученика</label>
+                                        <input type="text" name="one_four-{{ forloop.counter0 }}-full_name"
+                                               class="form-control student-name" value="{{ form.full_name.value|default:'' }}" required>
+                                        {% if form.full_name.errors %}
+                                            <div class="errorlist">{{ form.full_name.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-danger btn-sm remove-one-four-row mt-4" title="Удалить ученика">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Контейнер для предметов -->
+                            <div class="subjects-container mt-3" id="subjects-one_four-{{ forloop.counter0 }}">
+                                {% if form.subject.value or form.subject_choice.value %}
+                                    <div class="subject-item" data-subject-index="0">
+                                        <div class="row">
+                                            <div class="col-md-5">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Предмет</label>
+                                                    <select name="one_four-{{ forloop.counter0 }}-subject_choice" class="form-select subject-choice" required>
+                                                        <option value="">---------</option>
+                                                        {% for code, name in subjects %}
+                                                        <option value="{{ code }}" {% if form.subject_code.value == code %}selected{% endif %}>{{ name }}</option>
+                                                        {% endfor %}
+                                                        <option value="other" {% if form.subject_code.value == 'other' %}selected{% endif %}>Другой предмет</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-5">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Учитель</label>
+                                                    <input type="text" name="one_four-{{ forloop.counter0 }}-teacher"
+                                                           class="form-control" value="{{ form.teacher.value|default:'' }}" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" class="btn btn-danger btn-sm remove-subject mt-4" title="Удалить предмет">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="row custom-subject-row mt-2" style="{% if form.subject_code.value != 'other' %}display: none;{% endif %}">
+                                            <div class="col-12">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Другой предмет (укажите)</label>
+                                                    <input type="text" name="one_four-{{ forloop.counter0 }}-custom_subject"
+                                                           class="form-control custom-subject"
+                                                           value="{% if form.subject_code.value == 'other' %}{{ form.subject.value }}{% endif %}"
+                                                           {% if form.subject_code.value == 'other' %}required{% endif %}>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <input type="hidden" name="one_four-{{ forloop.counter0 }}-subject" class="subject-hidden" value="{{ form.subject.value|default:'' }}">
+                                        <input type="hidden" name="one_four-{{ forloop.counter0 }}-subject_code" class="subject-code-hidden" value="{{ form.subject_code.value|default:'' }}">
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="row mt-2">
+                                <div class="col-12">
+                                    <button type="button" class="btn btn-sm btn-outline-primary add-subject-btn"
+                                            data-prefix="one_four" data-student-index="{{ forloop.counter0 }}">
+                                        <i class="fas fa-plus me-1"></i> Добавить предмет
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="empty-message">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Нет добавленных учеников с одной "4"
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="add-btn-container">
+                    <span class="total-count">
+                        <i class="fas fa-users me-1"></i>
+                        Всего: <span id="one-four-total">0</span>
+                    </span>
+                    <button type="button" class="btn btn-outline-info btn-sm add-one-four-btn">
+                        <i class="fas fa-plus me-1"></i> Добавить ученика с одной "4"
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- С одной "3" -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-warning text-white">
+                <div class="section-title">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>С одной "3"</span>
+                </div>
+                <span class="badge bg-light text-dark counter-badge" id="one-three-counter">0</span>
+            </div>
+            <div class="card-body">
+                <!-- Скрытое поле для количества учеников с одной 3 -->
+                <input type="hidden" name="academic-one_three_count" id="id_academic-one_three_count" value="0">
+
+                {{ one_three_formset.management_form }}
+                <div id="one-three-students" class="students-container">
+                    {% for form in one_three_formset %}
+                        <div class="dynamic-formset one-three-row subject-row border-left-one_three mb-3 p-3" data-index="{{ forloop.counter0 }}" data-prefix="one_three">
+                            <div class="row">
+                                <div class="col-md-10">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">ФИО ученика</label>
+                                        <input type="text" name="one_three-{{ forloop.counter0 }}-full_name"
+                                               class="form-control student-name" value="{{ form.full_name.value|default:'' }}" required>
+                                        {% if form.full_name.errors %}
+                                            <div class="errorlist">{{ form.full_name.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-danger btn-sm remove-one-three-row mt-4" title="Удалить ученика">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Контейнер для предметов -->
+                            <div class="subjects-container mt-3" id="subjects-one_three-{{ forloop.counter0 }}">
+                                {% if form.subject.value or form.subject_choice.value %}
+                                    <div class="subject-item" data-subject-index="0">
+                                        <div class="row">
+                                            <div class="col-md-5">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Предмет</label>
+                                                    <select name="one_three-{{ forloop.counter0 }}-subject_choice" class="form-select subject-choice" required>
+                                                        <option value="">---------</option>
+                                                        {% for code, name in subjects %}
+                                                        <option value="{{ code }}" {% if form.subject_code.value == code %}selected{% endif %}>{{ name }}</option>
+                                                        {% endfor %}
+                                                        <option value="other" {% if form.subject_code.value == 'other' %}selected{% endif %}>Другой предмет</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-5">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Учитель</label>
+                                                    <input type="text" name="one_three-{{ forloop.counter0 }}-teacher"
+                                                           class="form-control" value="{{ form.teacher.value|default:'' }}" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" class="btn btn-danger btn-sm remove-subject mt-4" title="Удалить предмет">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="row custom-subject-row mt-2" style="{% if form.subject_code.value != 'other' %}display: none;{% endif %}">
+                                            <div class="col-12">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Другой предмет (укажите)</label>
+                                                    <input type="text" name="one_three-{{ forloop.counter0 }}-custom_subject"
+                                                           class="form-control custom-subject"
+                                                           value="{% if form.subject_code.value == 'other' %}{{ form.subject.value }}{% endif %}"
+                                                           {% if form.subject_code.value == 'other' %}required{% endif %}>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <input type="hidden" name="one_three-{{ forloop.counter0 }}-subject" class="subject-hidden" value="{{ form.subject.value|default:'' }}">
+                                        <input type="hidden" name="one_three-{{ forloop.counter0 }}-subject_code" class="subject-code-hidden" value="{{ form.subject_code.value|default:'' }}">
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="row mt-2">
+                                <div class="col-12">
+                                    <button type="button" class="btn btn-sm btn-outline-primary add-subject-btn"
+                                            data-prefix="one_three" data-student-index="{{ forloop.counter0 }}">
+                                        <i class="fas fa-plus me-1"></i> Добавить предмет
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="empty-message">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Нет добавленных учеников с одной "3"
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="add-btn-container">
+                    <span class="total-count">
+                        <i class="fas fa-users me-1"></i>
+                        Всего: <span id="one-three-total">0</span>
+                    </span>
+                    <button type="button" class="btn btn-outline-warning btn-sm add-one-three-btn">
+                        <i class="fas fa-plus me-1"></i> Добавить ученика с одной "3"
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Двоечники -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <div class="section-title">
+                    <i class="fas fa-times-circle"></i>
+                    <span>Двоечники</span>
+                </div>
+                <span class="badge bg-light text-dark counter-badge" id="poor-counter">0</span>
+            </div>
+            <div class="card-body">
+                <!-- Скрытое поле для количества двоечников -->
+                <input type="hidden" name="academic-poor_count" id="id_academic-poor_count" value="0">
+
+                {{ poor_formset.management_form }}
+                <div id="poor-students" class="students-container">
+                    {% for form in poor_formset %}
+                        <div class="dynamic-formset poor-row subject-row border-left-poor mb-3 p-3" data-index="{{ forloop.counter0 }}" data-prefix="poor">
+                            <div class="row">
+                                <div class="col-md-10">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">ФИО ученика</label>
+                                        <input type="text" name="poor-{{ forloop.counter0 }}-full_name"
+                                               class="form-control student-name" value="{{ form.full_name.value|default:'' }}" required>
+                                        {% if form.full_name.errors %}
+                                            <div class="errorlist">{{ form.full_name.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-danger btn-sm remove-poor-row mt-4" title="Удалить ученика">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Контейнер для предметов -->
+                            <div class="subjects-container mt-3" id="subjects-poor-{{ forloop.counter0 }}">
+                                {% if form.subject.value or form.subject_choice.value %}
+                                    <div class="subject-item" data-subject-index="0">
+                                        <div class="row">
+                                            <div class="col-md-5">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Предмет</label>
+                                                    <select name="poor-{{ forloop.counter0 }}-subject_choice" class="form-select subject-choice" required>
+                                                        <option value="">---------</option>
+                                                        {% for code, name in subjects %}
+                                                        <option value="{{ code }}" {% if form.subject_code.value == code %}selected{% endif %}>{{ name }}</option>
+                                                        {% endfor %}
+                                                        <option value="other" {% if form.subject_code.value == 'other' %}selected{% endif %}>Другой предмет</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-5">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Учитель</label>
+                                                    <input type="text" name="poor-{{ forloop.counter0 }}-teacher"
+                                                           class="form-control" value="{{ form.teacher.value|default:'' }}" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" class="btn btn-danger btn-sm remove-subject mt-4" title="Удалить предмет">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="row custom-subject-row mt-2" style="{% if form.subject_code.value != 'other' %}display: none;{% endif %}">
+                                            <div class="col-12">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Другой предмет (укажите)</label>
+                                                    <input type="text" name="poor-{{ forloop.counter0 }}-custom_subject"
+                                                           class="form-control custom-subject"
+                                                           value="{% if form.subject_code.value == 'other' %}{{ form.subject.value }}{% endif %}"
+                                                           {% if form.subject_code.value == 'other' %}required{% endif %}>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <input type="hidden" name="poor-{{ forloop.counter0 }}-subject" class="subject-hidden" value="{{ form.subject.value|default:'' }}">
+                                        <input type="hidden" name="poor-{{ forloop.counter0 }}-subject_code" class="subject-code-hidden" value="{{ form.subject_code.value|default:'' }}">
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="row mt-2">
+                                <div class="col-12">
+                                    <button type="button" class="btn btn-sm btn-outline-primary add-subject-btn"
+                                            data-prefix="poor" data-student-index="{{ forloop.counter0 }}">
+                                        <i class="fas fa-plus me-1"></i> Добавить предмет
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="empty-message">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Нет добавленных двоечников
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="add-btn-container">
+                    <span class="total-count">
+                        <i class="fas fa-users me-1"></i>
+                        Всего: <span id="poor-total">0</span>
+                    </span>
+                    <button type="button" class="btn btn-outline-danger btn-sm add-poor-btn">
+                        <i class="fas fa-plus me-1"></i> Добавить двоечника
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Не аттестованы -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <div class="section-title">
+                    <i class="fas fa-question-circle"></i>
+                    <span>Не аттестованы</span>
+                </div>
+                <span class="badge bg-light text-dark counter-badge" id="not-attested-counter">0</span>
+            </div>
+            <div class="card-body">
+                <!-- Скрытое поле для количества неаттестованных -->
+                <input type="hidden" name="academic-not_attested_count" id="id_academic-not_attested_count" value="0">
+
+                {{ not_attested_formset.management_form }}
+                <div id="not-attested-students" class="students-container">
+                    {% for form in not_attested_formset %}
+                        <div class="dynamic-formset not-attested-row subject-row border-left-not_attested mb-3 p-3" data-index="{{ forloop.counter0 }}" data-prefix="not_attested">
+                            <div class="row">
+                                <div class="col-md-10">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">ФИО ученика</label>
+                                        <input type="text" name="not_attested-{{ forloop.counter0 }}-full_name"
+                                               class="form-control student-name" value="{{ form.full_name.value|default:'' }}" required>
+                                        {% if form.full_name.errors %}
+                                            <div class="errorlist">{{ form.full_name.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-danger btn-sm remove-not-attested-row mt-4" title="Удалить ученика">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="mb-3 mt-3">
+                                <label class="form-label">Предметы (с указанием учителей)</label>
+                                <textarea name="not_attested-{{ forloop.counter0 }}-subjects"
+                                          class="form-control" rows="3" required>{{ form.subjects.value|default:'' }}</textarea>
+                                {% if form.subjects.errors %}
+                                    <div class="errorlist">{{ form.subjects.errors }}</div>
+                                {% endif %}
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Например: Русский язык (Иванова И.И.), Математика (Петров П.П.)
+                                </small>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="empty-message">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Нет добавленных неаттестованных учеников
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="add-btn-container">
+                    <span class="total-count">
+                        <i class="fas fa-users me-1"></i>
+                        Всего: <span id="not-attested-total">0</span>
+                    </span>
+                    <button type="button" class="btn btn-outline-secondary btn-sm add-not-attested-btn">
+                        <i class="fas fa-plus me-1"></i> Добавить неаттестованного ученика
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Пропуски и травматизм -->
+<hr class="my-4">
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h4 class="mb-3">Пропуски занятий</h4>
+    </div>
+    <div class="col-md-3">
+        <div class="form-group">
+            <label for="{{ academic_form.days_missed.id_for_label }}">Пропущено учебных дней:</label>
+            <input type="number" name="{{ academic_form.days_missed.html_name }}"
+                   class="form-control" min="0" value="{{ academic_form.days_missed.value|default:0 }}">
+            {% if academic_form.days_missed.errors %}
+                <div class="errorlist">{{ academic_form.days_missed.errors }}</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="form-group">
+            <label for="{{ academic_form.days_missed_illness.id_for_label }}">из них по болезни:</label>
+            <input type="number" name="{{ academic_form.days_missed_illness.html_name }}"
+                   class="form-control" min="0" value="{{ academic_form.days_missed_illness.value|default:0 }}">
+            {% if academic_form.days_missed_illness.errors %}
+                <div class="errorlist">{{ academic_form.days_missed_illness.errors }}</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="form-group">
+            <label for="{{ academic_form.lessons_missed.id_for_label }}">Пропущено уроков всего:</label>
+            <input type="number" name="{{ academic_form.lessons_missed.html_name }}"
+                   class="form-control" min="0" value="{{ academic_form.lessons_missed.value|default:0 }}">
+            {% if academic_form.lessons_missed.errors %}
+                <div class="errorlist">{{ academic_form.lessons_missed.errors }}</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="form-group">
+            <label for="{{ academic_form.lessons_missed_illness.id_for_label }}">из них по болезни:</label>
+            <input type="number" name="{{ academic_form.lessons_missed_illness.html_name }}"
+                   class="form-control" min="0" value="{{ academic_form.lessons_missed_illness.value|default:0 }}">
+            {% if academic_form.lessons_missed_illness.errors %}
+                <div class="errorlist">{{ academic_form.lessons_missed_illness.errors }}</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h4 class="mb-3">Травматизм</h4>
+    </div>
+    <div class="col-md-6">
+        <div class="form-group">
+            <label for="{{ academic_form.injury_school.id_for_label }}">В школе:</label>
+            <input type="number" name="{{ academic_form.injury_school.html_name }}"
+                   class="form-control" min="0" value="{{ academic_form.injury_school.value|default:0 }}">
+            {% if academic_form.injury_school.errors %}
+                <div class="errorlist">{{ academic_form.injury_school.errors }}</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-group">
+            <label for="{{ academic_form.injury_outside.id_for_label }}">Вне школы:</label>
+            <input type="number" name="{{ academic_form.injury_outside.html_name }}"
+                   class="form-control" min="0" value="{{ academic_form.injury_outside.value|default:0 }}">
+            {% if academic_form.injury_outside.errors %}
+                <div class="errorlist">{{ academic_form.injury_outside.errors }}</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Показатели качества -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card stats-card quality-card">
+            <div class="card-body text-center">
+                <h5 class="card-title">
+                    <i class="fas fa-star me-2"></i>
+                    Качество знаний
+                </h5>
+                <div class="display-3 fw-bold" id="quality-display">0%</div>
+                <p class="mt-2">
+                    <small>
+                        (отличники + ударники) / всего учеников
+                    </small>
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card stats-card success-card">
+            <div class="card-body text-center">
+                <h5 class="card-title">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Успеваемость
+                </h5>
+                <div class="display-3 fw-bold" id="success-display">0%</div>
+                <p class="mt-2">
+                    <small>
+                        (всего - двоечники) / всего учеников
+                    </small>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Инициализация академической секции...');
+
+    // Получаем ссылки на элементы
+    const qualityDisplay = document.getElementById('quality-display');
+    const successDisplay = document.getElementById('success-display');
+    const goodCountInput = document.getElementById('{{ academic_form.good_count.id_for_label }}');
+    const totalStudentsInput = document.getElementById('{{ form.total_students_end.id_for_label }}');
+
+    // Функции для обновления счетчиков
+    function updateCounters() {
+        // Отличники
+        const excellentCount = document.querySelectorAll('#excellent-students .excellent-row').length;
+        const excellentCounter = document.getElementById('excellent-counter');
+        const excellentTotal = document.getElementById('excellent-total');
+        const excellentHidden = document.getElementById('id_academic-excellent_count');
+
+        if (excellentCounter) excellentCounter.textContent = excellentCount;
+        if (excellentTotal) excellentTotal.textContent = excellentCount;
+        if (excellentHidden) excellentHidden.value = excellentCount;
+        updateManagementForm('excellent', 'excellent');
+
+        // С одной "4"
+        const oneFourCount = document.querySelectorAll('#one-four-students .one-four-row').length;
+        const oneFourCounter = document.getElementById('one-four-counter');
+        const oneFourTotal = document.getElementById('one-four-total');
+        const oneFourHidden = document.getElementById('id_academic-one_four_count');
+
+        if (oneFourCounter) oneFourCounter.textContent = oneFourCount;
+        if (oneFourTotal) oneFourTotal.textContent = oneFourCount;
+        if (oneFourHidden) oneFourHidden.value = oneFourCount;
+        updateManagementForm('one_four', 'one-four');
+
+        // С одной "3"
+        const oneThreeCount = document.querySelectorAll('#one-three-students .one-three-row').length;
+        const oneThreeCounter = document.getElementById('one-three-counter');
+        const oneThreeTotal = document.getElementById('one-three-total');
+        const oneThreeHidden = document.getElementById('id_academic-one_three_count');
+
+        if (oneThreeCounter) oneThreeCounter.textContent = oneThreeCount;
+        if (oneThreeTotal) oneThreeTotal.textContent = oneThreeCount;
+        if (oneThreeHidden) oneThreeHidden.value = oneThreeCount;
+        updateManagementForm('one_three', 'one-three');
+
+        // Двоечники
+        const poorCount = document.querySelectorAll('#poor-students .poor-row').length;
+        const poorCounter = document.getElementById('poor-counter');
+        const poorTotal = document.getElementById('poor-total');
+        const poorHidden = document.getElementById('id_academic-poor_count');
+
+        if (poorCounter) poorCounter.textContent = poorCount;
+        if (poorTotal) poorTotal.textContent = poorCount;
+        if (poorHidden) poorHidden.value = poorCount;
+        updateManagementForm('poor', 'poor');
+
+        // Не аттестованы
+        const notAttestedCount = document.querySelectorAll('#not-attested-students .not-attested-row').length;
+        const notAttestedCounter = document.getElementById('not-attested-counter');
+        const notAttestedTotal = document.getElementById('not-attested-total');
+        const notAttestedHidden = document.getElementById('id_academic-not_attested_count');
+
+        if (notAttestedCounter) notAttestedCounter.textContent = notAttestedCount;
+        if (notAttestedTotal) notAttestedTotal.textContent = notAttestedCount;
+        if (notAttestedHidden) notAttestedHidden.value = notAttestedCount;
+        updateManagementForm('not_attested', 'not-attested');
+
+        calculateQuality();
+    }
+
+    function updateManagementForm(prefix, containerId) {
+        const container = document.getElementById(containerId + '-students');
+        if (!container) return;
+
+        const totalForms = container.querySelectorAll('.dynamic-formset').length;
+        const managementInput = document.querySelector(`#id_${prefix}-TOTAL_FORMS`);
+        if (managementInput) {
+            managementInput.value = totalForms;
+            console.log(`Обновлен ${prefix}-TOTAL_FORMS:`, totalForms);
+        }
+    }
+
+    // Функция для добавления предмета к ученику
+    function addSubject(prefix, studentIndex) {
+        const container = document.getElementById(`subjects-${prefix}-${studentIndex}`);
+        if (!container) return;
+
+        const subjectIndex = container.children.length;
+
+        const subjectHtml = `
+            <div class="subject-item" data-subject-index="${subjectIndex}">
+                <div class="row">
+                    <div class="col-md-5">
+                        <div class="mb-2">
+                            <label class="form-label">Предмет</label>
+                            <select name="${prefix}-${studentIndex}-subject_choice" class="form-select subject-choice" required>
+                                <option value="">---------</option>
+                                {% for code, name in subjects %}
+                                <option value="{{ code }}">{{ name }}</option>
+                                {% endfor %}
+                                <option value="other">Другой предмет</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="mb-2">
+                            <label class="form-label">Учитель</label>
+                            <input type="text" name="${prefix}-${studentIndex}-teacher" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-danger btn-sm remove-subject mt-4" title="Удалить предмет">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="row custom-subject-row mt-2" style="display: none;">
+                    <div class="col-12">
+                        <div class="mb-2">
+                            <label class="form-label">Другой предмет (укажите)</label>
+                            <input type="text" name="${prefix}-${studentIndex}-custom_subject" class="form-control custom-subject">
+                        </div>
+                    </div>
+                </div>
+
+                <input type="hidden" name="${prefix}-${studentIndex}-subject" class="subject-hidden">
+                <input type="hidden" name="${prefix}-${studentIndex}-subject_code" class="subject-code-hidden">
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', subjectHtml);
+    }
+
+    // Функция для добавления отличника
+    function addExcellent() {
+        const container = document.getElementById('excellent-students');
+        const index = container.querySelectorAll('.excellent-row').length;
+
+        const html = `
+            <div class="dynamic-formset excellent-row subject-row border-left-excellent mb-3 p-3" data-index="${index}" data-prefix="excellent">
+                <div class="row">
+                    <div class="col-md-10">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ФИО ученика</label>
+                            <input type="text" name="excellent-${index}-full_name" class="form-control student-name" required>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-danger btn-sm remove-excellent-row mt-4" title="Удалить отличника">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', html);
+        updateCounters();
+    }
+
+    // Функция для добавления ученика с одной 4
+    function addOneFour() {
+        const container = document.getElementById('one-four-students');
+        const index = container.querySelectorAll('.one-four-row').length;
+
+        const html = `
+            <div class="dynamic-formset one-four-row subject-row border-left-one_four mb-3 p-3" data-index="${index}" data-prefix="one_four">
+                <div class="row">
+                    <div class="col-md-10">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ФИО ученика</label>
+                            <input type="text" name="one_four-${index}-full_name" class="form-control student-name" required>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-danger btn-sm remove-one-four-row mt-4" title="Удалить ученика">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="subjects-container mt-3" id="subjects-one_four-${index}"></div>
+
+                <div class="row mt-2">
+                    <div class="col-12">
+                        <button type="button" class="btn btn-sm btn-outline-primary add-subject-btn"
+                                data-prefix="one_four" data-student-index="${index}">
+                            <i class="fas fa-plus me-1"></i> Добавить предмет
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', html);
+        updateCounters();
+    }
+
+    // Функция для добавления ученика с одной 3
+    function addOneThree() {
+        const container = document.getElementById('one-three-students');
+        const index = container.querySelectorAll('.one-three-row').length;
+
+        const html = `
+            <div class="dynamic-formset one-three-row subject-row border-left-one_three mb-3 p-3" data-index="${index}" data-prefix="one_three">
+                <div class="row">
+                    <div class="col-md-10">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ФИО ученика</label>
+                            <input type="text" name="one_three-${index}-full_name" class="form-control student-name" required>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-danger btn-sm remove-one-three-row mt-4" title="Удалить ученика">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="subjects-container mt-3" id="subjects-one_three-${index}"></div>
+
+                <div class="row mt-2">
+                    <div class="col-12">
+                        <button type="button" class="btn btn-sm btn-outline-primary add-subject-btn"
+                                data-prefix="one_three" data-student-index="${index}">
+                            <i class="fas fa-plus me-1"></i> Добавить предмет
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', html);
+        updateCounters();
+    }
+
+    // Функция для добавления двоечника
+    function addPoor() {
+        const container = document.getElementById('poor-students');
+        const index = container.querySelectorAll('.poor-row').length;
+
+        const html = `
+            <div class="dynamic-formset poor-row subject-row border-left-poor mb-3 p-3" data-index="${index}" data-prefix="poor">
+                <div class="row">
+                    <div class="col-md-10">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ФИО ученика</label>
+                            <input type="text" name="poor-${index}-full_name" class="form-control student-name" required>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-danger btn-sm remove-poor-row mt-4" title="Удалить ученика">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="subjects-container mt-3" id="subjects-poor-${index}"></div>
+
+                <div class="row mt-2">
+                    <div class="col-12">
+                        <button type="button" class="btn btn-sm btn-outline-primary add-subject-btn"
+                                data-prefix="poor" data-student-index="${index}">
+                            <i class="fas fa-plus me-1"></i> Добавить предмет
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', html);
+        updateCounters();
+    }
+
+    // Функция для добавления неаттестованного
+    function addNotAttested() {
+        const container = document.getElementById('not-attested-students');
+        const index = container.querySelectorAll('.not-attested-row').length;
+
+        const html = `
+            <div class="dynamic-formset not-attested-row subject-row border-left-not_attested mb-3 p-3" data-index="${index}" data-prefix="not_attested">
+                <div class="row">
+                    <div class="col-md-10">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ФИО ученика</label>
+                            <input type="text" name="not_attested-${index}-full_name" class="form-control student-name" required>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-danger btn-sm remove-not-attested-row mt-4" title="Удалить ученика">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-3 mt-3">
+                    <label class="form-label">Предметы (с указанием учителей)</label>
+                    <textarea name="not_attested-${index}-subjects" class="form-control" rows="3" required></textarea>
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Например: Русский язык (Иванова И.И.), Математика (Петров П.П.)
+                    </small>
+                </div>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', html);
+        updateCounters();
+    }
+
+    // Функция расчета качества
+    function calculateQuality() {
+        const excellent = document.querySelectorAll('#excellent-students .excellent-row').length;
+        const good = parseInt(goodCountInput?.value) || 0;
+        const poor = document.querySelectorAll('#poor-students .poor-row').length;
+        const total = parseInt(totalStudentsInput?.value) || 0;
+
+        console.log('Расчет качества:', { excellent, good, poor, total });
+
+        if (total > 0 && qualityDisplay && successDisplay) {
+            const quality = ((excellent + good) / total * 100).toFixed(1);
+            const success = ((total - poor) / total * 100).toFixed(1);
+
+            qualityDisplay.textContent = quality + '%';
+            successDisplay.textContent = success + '%';
+
+            // Изменяем цвет в зависимости от значения
+            if (quality >= 70) {
+                qualityDisplay.style.color = '#28a745';
+            } else if (quality >= 50) {
+                qualityDisplay.style.color = '#ffc107';
+            } else {
+                qualityDisplay.style.color = '#dc3545';
+            }
+
+            if (success >= 90) {
+                successDisplay.style.color = '#28a745';
+            } else if (success >= 75) {
+                successDisplay.style.color = '#ffc107';
+            } else {
+                successDisplay.style.color = '#dc3545';
+            }
+        }
+    }
+
+    // Назначаем обработчики клика
+    document.querySelector('.add-excellent-btn')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        addExcellent();
+    });
+
+    document.querySelector('.add-one-four-btn')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        addOneFour();
+    });
+
+    document.querySelector('.add-one-three-btn')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        addOneThree();
+    });
+
+    document.querySelector('.add-poor-btn')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        addPoor();
+    });
+
+    document.querySelector('.add-not-attested-btn')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        addNotAttested();
+    });
+
+    // Обработчики для кнопок добавления предметов
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('add-subject-btn') || e.target.closest('.add-subject-btn')) {
+            e.preventDefault();
+            const btn = e.target.closest('.add-subject-btn');
+            const prefix = btn.dataset.prefix;
+            const studentIndex = btn.dataset.studentIndex;
+            addSubject(prefix, studentIndex);
+        }
+    });
+
+    // Обработчики удаления
+    document.addEventListener('click', function(e) {
+        // Удаление ученика-отличника
+        if (e.target.classList.contains('remove-excellent-row') || e.target.closest('.remove-excellent-row')) {
+            e.preventDefault();
+            const row = e.target.closest('.excellent-row');
+            if (row && confirm('Удалить этого ученика?')) {
+                row.remove();
+                updateCounters();
+            }
+        }
+
+        // Удаление ученика с одной 4
+        if (e.target.classList.contains('remove-one-four-row') || e.target.closest('.remove-one-four-row')) {
+            e.preventDefault();
+            const row = e.target.closest('.one-four-row');
+            if (row && confirm('Удалить этого ученика?')) {
+                row.remove();
+                updateCounters();
+            }
+        }
+
+        // Удаление ученика с одной 3
+        if (e.target.classList.contains('remove-one-three-row') || e.target.closest('.remove-one-three-row')) {
+            e.preventDefault();
+            const row = e.target.closest('.one-three-row');
+            if (row && confirm('Удалить этого ученика?')) {
+                row.remove();
+                updateCounters();
+            }
+        }
+
+        // Удаление двоечника
+        if (e.target.classList.contains('remove-poor-row') || e.target.closest('.remove-poor-row')) {
+            e.preventDefault();
+            const row = e.target.closest('.poor-row');
+            if (row && confirm('Удалить этого ученика?')) {
+                row.remove();
+                updateCounters();
+            }
+        }
+
+        // Удаление неаттестованного
+        if (e.target.classList.contains('remove-not-attested-row') || e.target.closest('.remove-not-attested-row')) {
+            e.preventDefault();
+            const row = e.target.closest('.not-attested-row');
+            if (row && confirm('Удалить этого ученика?')) {
+                row.remove();
+                updateCounters();
+            }
+        }
+
+        // Удаление предмета
+        if (e.target.classList.contains('remove-subject') || e.target.closest('.remove-subject')) {
+            e.preventDefault();
+            const subject = e.target.closest('.subject-item');
+            if (subject && confirm('Удалить этот предмет?')) {
+                subject.remove();
+            }
+        }
+    });
+
+    // Обработка выбора предмета
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('subject-choice')) {
+            const row = e.target.closest('.subject-item');
+            if (!row) return;
+
+            const customRow = row.querySelector('.custom-subject-row');
+            const subjectHidden = row.querySelector('.subject-hidden');
+            const subjectCodeHidden = row.querySelector('.subject-code-hidden');
+            const customInput = row.querySelector('.custom-subject');
+
+            if (e.target.value === 'other') {
+                customRow.style.display = 'block';
+                subjectHidden.value = '';
+                subjectCodeHidden.value = 'other';
+                if (customInput) customInput.required = true;
+            } else {
+                customRow.style.display = 'none';
+                const selectedOption = e.target.options[e.target.selectedIndex];
+                subjectHidden.value = selectedOption.text;
+                subjectCodeHidden.value = e.target.value;
+                if (customInput) {
+                    customInput.value = '';
+                    customInput.required = false;
+                }
+            }
+        }
+
+        if (e.target.classList.contains('custom-subject')) {
+            const row = e.target.closest('.subject-item');
+            const subjectHidden = row.querySelector('.subject-hidden');
+            subjectHidden.value = e.target.value;
+        }
+    });
+
+    // Следим за изменениями во всех полях, влияющих на качество
+    if (goodCountInput) {
+        goodCountInput.addEventListener('input', calculateQuality);
+        goodCountInput.addEventListener('change', calculateQuality);
+    }
+
+    if (totalStudentsInput) {
+        totalStudentsInput.addEventListener('input', calculateQuality);
+        totalStudentsInput.addEventListener('change', calculateQuality);
+    }
+
+    // Обновляем счетчики и качество при загрузке
+    updateCounters();
+
+    // Добавляем наблюдение за изменениями в DOM для автоматического пересчета
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList') {
+                calculateQuality();
+            }
+        });
+    });
+
+    // Наблюдаем за контейнерами учеников
+    const containers = [
+        'excellent-students',
+        'one-four-students',
+        'one-three-students',
+        'poor-students',
+        'not-attested-students'
+    ];
+
+    containers.forEach(function(containerId) {
+        const container = document.getElementById(containerId);
+        if (container) {
+            observer.observe(container, { childList: true, subtree: true });
+        }
+    });
+});
+</script>

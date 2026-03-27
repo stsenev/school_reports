@@ -1,0 +1,260 @@
+<!-- templates/reports/summary_report.html -->
+{% extends 'base.html' %}
+{% load report_filters %}
+
+{% block title %}Сводный отчет{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1>
+                <i class="fas fa-chart-bar text-primary me-2"></i>
+                Сводный отчет
+            </h1>
+            <div class="d-flex justify-content-between align-items-center">
+                <a href="{% url 'head_dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Назад
+                </a>
+                <a href="{% url 'export_summary_excel' %}?{% if request.GET.urlencode %}{{ request.GET.urlencode }}{% endif %}" class="btn btn-success">
+                    <i class="fas fa-file-excel me-2"></i>Экспорт в Excel
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Фильтры</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Период</label>
+                            <select name="period" class="form-select">
+                                <option value="">Все периоды</option>
+                                {% for period in periods %}
+                                <option value="{{ period.id }}" {% if selected_period == period.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ period.name }} {{ period.academic_year }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Класс</label>
+                            <select name="class" class="form-select">
+                                <option value="">Все классы</option>
+                                {% for class in classes %}
+                                <option value="{{ class.id }}" {% if selected_class == class.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ class.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Параллель</label>
+                            <select name="parallel" class="form-select">
+                                <option value="">Все параллели</option>
+                                {% for p in parallels %}
+                                <option value="{{ p }}" {% if selected_parallel == p|stringformat:"s" %}selected{% endif %}>
+                                    {{ p }} класс
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mt-4">
+                                <input type="checkbox" name="show_family" id="show_family" class="form-check-input" {% if show_family %}checked{% endif %}>
+                                <label class="form-check-label" for="show_family">
+                                    Показать список семейных учеников
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter me-2"></i>Применить фильтры
+                            </button>
+                            <a href="{% url 'summary_report' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Сбросить
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Таблица с детализацией -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Детализация по классам</h5>
+                    <span class="badge bg-light text-dark">Всего записей: {{ reports|length }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Класс</th>
+                                    <th>Учитель</th>
+                                    <th>Период</th>
+                                    <th class="text-center">Всего учеников</th>
+                                    <th class="text-center">Семейных</th>
+                                    <th class="text-center">Очных</th>
+                                    <th class="text-center">Мальчики</th>
+                                    <th class="text-center">Девочки</th>
+                                    <th class="text-center">Отличники</th>
+                                    <th class="text-center">Ударники</th>
+                                    <th class="text-center">Двоечники</th>
+                                    <th class="text-center">Сквозные</th>
+                                    <th class="text-center">Качество %</th>
+                                    <th class="text-center">Успеваемость %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for report in reports %}
+                                <tr>
+                                    <td>{{ report.school_class.name }}</td>
+                                    <td>{{ report.teacher.full_name }}</td>
+                                    <td>{{ report.period.name }}</td>
+                                    <td class="text-center">{{ report.total_students_end }}</td>
+                                    <td class="text-center">
+                                        {% if report.family_education and report.family_education.has_family_education %}
+                                            {{ report.family_education.count }}
+                                        {% else %}
+                                            0
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">{{ report.in_person_students_count }}</td>
+
+                                    <!-- Используем фильтры для подсчета -->
+                                    <td class="text-center">{{ report.age_groups.all|sum_boys }}</td>
+                                    <td class="text-center">{{ report.age_groups.all|sum_girls }}</td>
+
+                                    <td class="text-center">{{ report.academic_performance.excellent_count|default:0 }}</td>
+                                    <td class="text-center">{{ report.academic_performance.good_count|default:0 }}</td>
+                                    <td class="text-center">{{ report.academic_performance.poor_count|default:0 }}</td>
+                                    <td class="text-center">
+                                        {% if report.academic_performance %}
+                                            {{ report.academic_performance.poor_students.filter.is_recurring.count }}
+                                        {% else %}
+                                            0
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if report.academic_performance %}
+                                            {% with in_person=report.in_person_students_count %}
+                                            {% if in_person > 0 %}
+                                                {% with quality=report.academic_performance.excellent_count|add:report.academic_performance.good_count|divide:in_person %}
+                                                    <span class="{% if quality >= 70 %}text-success{% elif quality >= 50 %}text-warning{% else %}text-danger{% endif %} fw-bold">
+                                                        {{ quality|floatformat:1 }}%
+                                                    </span>
+                                                {% endwith %}
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                            {% endwith %}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if report.academic_performance %}
+                                            {% with in_person=report.in_person_students_count %}
+                                            {% if in_person > 0 %}
+                                                {% with passed=in_person|add:report.academic_performance.poor_count %}
+                                                {% with success=passed|divide:in_person %}
+                                                    <span class="{% if success >= 90 %}text-success{% elif success >= 75 %}text-warning{% else %}text-danger{% endif %} fw-bold">
+                                                        {{ success|floatformat:1 }}%
+                                                    </span>
+                                                {% endwith %}
+                                                {% endwith %}
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                            {% endwith %}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="14" class="text-center text-muted py-4">
+                                        <i class="fas fa-folder-open fa-2x mb-2"></i>
+                                        <p>Нет данных для отображения</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <!-- ИТОГО строка -->
+                            {% if reports %}
+                            <tfoot class="table-secondary fw-bold">
+                                <tr>
+                                    <td colspan="3" class="text-end">ИТОГО:</td>
+                                    <td class="text-center">{{ total_all_students }}</td>
+                                    <td class="text-center">{{ total_family_students }}</td>
+                                    <td class="text-center">{{ total_in_person_students }}</td>
+                                    <td class="text-center">{{ total_boys }}</td>
+                                    <td class="text-center">{{ total_girls }}</td>
+                                    <td class="text-center">{{ stats.total_excellent|default:0 }}</td>
+                                    <td class="text-center">{{ stats.total_good|default:0 }}</td>
+                                    <td class="text-center">{{ stats.total_poor|default:0 }}</td>
+                                    <td class="text-center">{{ total_recurring_poor }}</td>
+                                    <td class="text-center">
+                                        <span class="{% if quality >= 70 %}text-success{% elif quality >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                                            {{ quality|floatformat:1 }}%
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="{% if success >= 90 %}text-success{% elif success >= 75 %}text-warning{% else %}text-danger{% endif %}">
+                                            {{ success|floatformat:1 }}%
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                            {% endif %}
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .table-dark {
+        background-color: #343a40;
+        color: white;
+    }
+    .table tfoot {
+        border-top: 2px solid #dee2e6;
+        background-color: #f8f9fa;
+    }
+    .text-success {
+        color: #28a745 !important;
+        font-weight: bold;
+    }
+    .text-warning {
+        color: #ffc107 !important;
+        font-weight: bold;
+    }
+    .text-danger {
+        color: #dc3545 !important;
+        font-weight: bold;
+    }
+    .text-muted {
+        color: #6c757d !important;
+    }
+    .display-6 {
+        font-size: 2.5rem;
+        font-weight: 300;
+        line-height: 1.2;
+    }
+</style>
+{% endblock %}

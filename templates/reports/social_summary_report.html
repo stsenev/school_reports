@@ -1,0 +1,315 @@
+<!-- templates/reports/social_summary_report.html -->
+{% extends 'base.html' %}
+{% load report_filters %}
+
+{% block title %}Социальный сводный отчет{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1>
+                <i class="fas fa-heart text-primary me-2"></i>
+                Социальный сводный отчет
+            </h1>
+            <div class="d-flex justify-content-between align-items-center">
+                <a href="{% url 'head_dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Назад
+                </a>
+                <a href="{% url 'export_social_excel' %}?{% if request.GET.urlencode %}{{ request.GET.urlencode }}{% endif %}" class="btn btn-success">
+                    <i class="fas fa-file-excel me-2"></i>Экспорт в Excel
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Фильтры</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Период</label>
+                            <select name="period" class="form-select">
+                                <option value="">Все периоды</option>
+                                {% for period in periods %}
+                                <option value="{{ period.id }}" {% if selected_period == period.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ period.name }} {{ period.academic_year }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Класс</label>
+                            <select name="class" class="form-select">
+                                <option value="">Все классы</option>
+                                {% for class in classes %}
+                                <option value="{{ class.id }}" {% if selected_class == class.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ class.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Параллель</label>
+                            <select name="parallel" class="form-select">
+                                <option value="">Все параллели</option>
+                                {% for p in parallels %}
+                                <option value="{{ p }}" {% if selected_parallel == p|stringformat:"s" %}selected{% endif %}>
+                                    {{ p }} класс
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mt-4">
+                                <input type="checkbox" name="show_details" id="show_details" class="form-check-input" {% if show_details %}checked{% endif %}>
+                                <label class="form-check-label" for="show_details">
+                                    Показать поименные списки
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter me-2"></i>Применить фильтры
+                            </button>
+                            <a href="{% url 'social_summary_report' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Сбросить
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Информационная карточка -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Всего отчетов</h5>
+                    <p class="card-text display-6">{{ total_reports }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title">Всего учеников</h5>
+                    <p class="card-text display-6">{{ total_all_students }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <h5 class="card-title">В социальных категориях</h5>
+                    <p class="card-text display-6">{{ total_disabled|add:total_special_needs|add:total_disabled_special|add:total_home_schooling|add:total_foster_care|add:total_family_education }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">% от общего числа</h5>
+                    <p class="card-text display-6">
+                        {% if total_all_students > 0 %}
+                            {% with total_cat=total_disabled|add:total_special_needs|add:total_disabled_special|add:total_home_schooling|add:total_foster_care|add:total_family_education %}
+                                {{ total_cat|divide:total_all_students|floatformat:1 }}%
+                            {% endwith %}
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Основная таблица -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-table me-2"></i>
+                        Распределение по классам
+                    </h5>
+                    <span class="badge bg-light text-dark">Найдено записей: {{ table_data|length }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover table-bordered">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th rowspan="2" class="align-middle">Класс</th>
+                                    <th rowspan="2" class="align-middle">Учитель</th>
+                                    <th rowspan="2" class="align-middle">Период</th>
+                                    <th rowspan="2" class="align-middle text-center">Всего уч.</th>
+                                    <th colspan="5" class="text-center bg-danger bg-gradient">Специальные категории</th>
+                                    <th rowspan="2" class="align-middle text-center bg-warning bg-gradient">Семейное обучение</th>
+                                </tr>
+                                <tr>
+                                    <th class="text-center bg-danger bg-gradient" title="Дети-инвалиды">
+                                        <i class="fas fa-wheelchair"></i> Инвалиды
+                                    </th>
+                                    <th class="text-center bg-warning bg-gradient" title="Дети с ОВЗ">
+                                        <i class="fas fa-heart"></i> ОВЗ
+                                    </th>
+                                    <th class="text-center bg-info bg-gradient" title="Дети-инвалиды с ОВЗ">
+                                        <i class="fas fa-heartbeat"></i> Инв. с ОВЗ
+                                    </th>
+                                    <th class="text-center bg-primary bg-gradient" title="Обучающиеся на дому">
+                                        <i class="fas fa-home"></i> На дому
+                                    </th>
+                                    <th class="text-center bg-success bg-gradient" title="Опекаемые дети">
+                                        <i class="fas fa-heart"></i> Опека
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in table_data %}
+                                <tr>
+                                    <td>{{ row.class }}</td>
+                                    <td>{{ row.teacher }}</td>
+                                    <td>{{ row.period }}</td>
+                                    <td class="text-center fw-bold">{{ row.total_students }}</td>
+                                    <td class="text-center {% if row.disabled > 0 %}bg-danger bg-opacity-10 fw-bold{% endif %}">{{ row.disabled }}</td>
+                                    <td class="text-center {% if row.special_needs > 0 %}bg-warning bg-opacity-10 fw-bold{% endif %}">{{ row.special_needs }}</td>
+                                    <td class="text-center {% if row.disabled_special > 0 %}bg-info bg-opacity-10 fw-bold{% endif %}">{{ row.disabled_special }}</td>
+                                    <td class="text-center {% if row.home_schooling > 0 %}bg-primary bg-opacity-10 fw-bold{% endif %}">{{ row.home_schooling }}</td>
+                                    <td class="text-center {% if row.foster_care > 0 %}bg-success bg-opacity-10 fw-bold{% endif %}">{{ row.foster_care }}</td>
+                                    <td class="text-center {% if row.family_education > 0 %}bg-warning bg-opacity-10 fw-bold{% endif %}">{{ row.family_education }}</td>
+                                </tr>
+                                {% if show_details and row.students_list %}
+                                <tr class="table-info">
+                                    <td colspan="11" class="p-0">
+                                        <div class="p-2 bg-light">
+                                            <strong>Ученики класса {{ row.class }}:</strong>
+                                            <ul class="list-unstyled mb-0 mt-1 row">
+                                                {% for student in row.students_list %}
+                                                <li class="col-md-4">
+                                                    <i class="fas fa-user me-1"></i>{{ student.name }}
+                                                    <span class="badge
+                                                        {% if student.category == 'special' %}
+                                                            {% if 'инвалид' in student.type|lower %}bg-danger
+                                                            {% elif 'ОВЗ' in student.type %}bg-warning text-dark
+                                                            {% elif 'дому' in student.type %}bg-primary
+                                                            {% elif 'опека' in student.type %}bg-success
+                                                            {% else %}bg-secondary{% endif %}
+                                                        {% else %}bg-warning{% endif %}">
+                                                        {{ student.type }}
+                                                    </span>
+                                                </li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% empty %}
+                                <tr>
+                                    <td colspan="11" class="text-center text-muted py-4">
+                                        <i class="fas fa-folder-open fa-2x mb-2"></i>
+                                        <p>Нет данных для отображения</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <!-- ИТОГО строка -->
+                            {% if table_data %}
+                            <tfoot class="table-secondary fw-bold">
+                                <tr>
+                                    <td colspan="3" class="text-end">ИТОГО:</td>
+                                    <td class="text-center">{{ total_all_students }}</td>
+                                    <td class="text-center">{{ total_disabled }}</td>
+                                    <td class="text-center">{{ total_special_needs }}</td>
+                                    <td class="text-center">{{ total_disabled_special }}</td>
+                                    <td class="text-center">{{ total_home_schooling }}</td>
+                                    <td class="text-center">{{ total_foster_care }}</td>
+                                    <td class="text-center">{{ total_family_education }}</td>
+                                </tr>
+                                <tr class="table-info">
+                                    <td colspan="3" class="text-end">% от общего числа:</td>
+                                    <td class="text-center">100%</td>
+                                    <td class="text-center">
+                                        {% if total_all_students > 0 %}
+                                            {{ total_disabled|divide:total_all_students|floatformat:1 }}%
+                                        {% else %}0%{% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if total_all_students > 0 %}
+                                            {{ total_special_needs|divide:total_all_students|floatformat:1 }}%
+                                        {% else %}0%{% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if total_all_students > 0 %}
+                                            {{ total_disabled_special|divide:total_all_students|floatformat:1 }}%
+                                        {% else %}0%{% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if total_all_students > 0 %}
+                                            {{ total_home_schooling|divide:total_all_students|floatformat:1 }}%
+                                        {% else %}0%{% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if total_all_students > 0 %}
+                                            {{ total_foster_care|divide:total_all_students|floatformat:1 }}%
+                                        {% else %}0%{% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if total_all_students > 0 %}
+                                            {{ total_family_education|divide:total_all_students|floatformat:1 }}%
+                                        {% else %}0%{% endif %}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                            {% endif %}
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .table-dark {
+        background-color: #343a40;
+        color: white;
+    }
+    .table tfoot {
+        border-top: 2px solid #dee2e6;
+    }
+    .display-6 {
+        font-size: 2.5rem;
+        font-weight: 300;
+        line-height: 1.2;
+    }
+    .bg-opacity-10 {
+        --bs-bg-opacity: 0.1;
+    }
+    .table td {
+        vertical-align: middle;
+    }
+    .bg-danger.bg-gradient {
+        background: linear-gradient(135deg, #dc3545 0%, #bb2d3b 100%) !important;
+    }
+    .bg-warning.bg-gradient {
+        background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%) !important;
+    }
+    .bg-info.bg-gradient {
+        background: linear-gradient(135deg, #0dcaf0 0%, #31d2f2 100%) !important;
+    }
+    .bg-primary.bg-gradient {
+        background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%) !important;
+    }
+    .bg-success.bg-gradient {
+        background: linear-gradient(135deg, #198754 0%, #157347 100%) !important;
+    }
+</style>
+{% endblock %}
